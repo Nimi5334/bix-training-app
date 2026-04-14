@@ -83,6 +83,15 @@
         </div>
       </div>
 
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" id="trainer-view-btn" onclick="toggleTrainerView()" style="margin-left:auto">👨‍🏫 Trainer's 5-Week View</button>
+      </div>
+
+      <div id="trainer-view-section" style="display:none;margin-bottom:20px;padding:16px;background:var(--surface2);border-radius:8px">
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:8px">Your trainer sees your programs for the next 5 weeks starting from:</p>
+        <div style="font-size:14px;font-weight:600" id="trainer-window-dates"></div>
+      </div>
+
       <div id="plans-container"></div>
       <div class="empty-state" id="plans-empty" style="display:none">
         <div class="empty-icon">📭</div>
@@ -221,7 +230,7 @@ function renderPlans() {
               <div class="exercise-name">${ex.name}</div>
               ${ex.notes ? `<div class="exercise-notes">${ex.notes}</div>` : ''}
             </div>
-            <div class="exercise-meta">${ex.sets} × ${ex.reps} · Rest ${ex.rest}</div>
+            <div class="exercise-meta">${ex.sets} × ${ex.reps} · RPE ${ex.rpe || 'N/A'}</div>
           </div>`).join('')}
       </div>`).join('');
 
@@ -313,7 +322,7 @@ function renderToday() {
             <div style="display:flex;gap:20px;margin-top:14px;flex-wrap:wrap">
               <div style="text-align:center"><div style="font-size:24px;font-weight:700">${ex.sets}</div><div style="font-size:11px;color:var(--text-muted)">SETS</div></div>
               <div style="text-align:center"><div style="font-size:24px;font-weight:700">${ex.reps}</div><div style="font-size:11px;color:var(--text-muted)">REPS</div></div>
-              <div style="text-align:center"><div style="font-size:24px;font-weight:700">${ex.rest}</div><div style="font-size:11px;color:var(--text-muted)">REST</div></div>
+              <div style="text-align:center"><div style="font-size:24px;font-weight:700">${ex.rpe || 'N/A'}</div><div style="font-size:11px;color:var(--text-muted)">RPE</div></div>
             </div>
           </div>
           <button class="btn btn-success btn-sm" id="done-btn-${i}" onclick="markDone(${i})" style="flex-shrink:0">✓ Done</button>
@@ -438,6 +447,28 @@ function closeSidebar() {
   document.getElementById('sidebar-backdrop').classList.remove('open');
 }
 document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', closeSidebar));
+
+// ── Trainer's 5-Week View (Client perspective) ──
+function toggleTrainerView() {
+  const section = document.getElementById('trainer-view-section');
+  const btn = document.getElementById('trainer-view-btn');
+  const isOpen = section.style.display !== 'none';
+
+  if (!isOpen) {
+    const today = new Date();
+    const endDate = new Date(today);
+    endDate.setDate(endDate.getDate() + 35); // 5 weeks
+
+    document.getElementById('trainer-window-dates').textContent =
+      `${today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+
+    section.style.display = 'block';
+    btn.style.background = 'var(--primary)';
+  } else {
+    section.style.display = 'none';
+    btn.style.background = '';
+  }
+}
 
 // ── Boot ──
 showPage('myplans');

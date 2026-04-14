@@ -109,7 +109,7 @@
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Username</th><th>Clients</th><th>Programs</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Name</th><th>Username</th><th>Clients</th><th>Programs</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody id="coaches-body" style="cursor:pointer"></tbody>
           </table>
         </div>
@@ -318,13 +318,17 @@ function renderCoaches() {
     ? coaches.map(c => {
         const cc = DB.getClientsByCoach(c.id).length;
         const pp = DB.getPlansByCoachId(c.id).length;
+        const active = DB.isMembershipActive(c);
+        const expiry = c.membershipExpiry ? new Date(c.membershipExpiry).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : 'N/A';
         return `<tr onclick="openCoachClients('${c.id}')" style="cursor:pointer" title="Click to view clients">
           <td><strong>${c.name}</strong></td>
           <td>@${c.username}</td>
           <td>${cc}</td>
           <td>${pp}</td>
+          <td style="font-size:13px;color:${active ? '#4ade80' : '#ef4444'}">${active ? '✅ Active' : '❌ Expired'} (${expiry})</td>
           <td onclick="event.stopPropagation()">
             <button class="btn btn-secondary btn-sm" onclick="openEditCoach('${c.id}')">✏️ Edit</button>
+            <button class="btn btn-secondary btn-sm" onclick="openCoachMembershipModal('${c.id}')" style="margin-left:6px">💳 Membership</button>
             <button class="btn btn-danger btn-sm" onclick="deleteCoach('${c.id}')" style="margin-left:6px">🗑 Delete</button>
           </td>
         </tr>`;
@@ -562,12 +566,63 @@ function closeSidebar() {
 }
 document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', closeSidebar));
 
+// ── Coach Membership Management ──
+let _coachMembershipId = null;
+function openCoachMembershipModal(coachId) {
+  _coachMembershipId = coachId;
+  const coach = DB.getUserById(coachId);
+  document.getElementById('cm-coach-name').textContent = coach.name;
+  document.getElementById('cm-expiry').value = coach.membershipExpiry ? coach.membershipExpiry.split('T')[0] : '';
+  document.getElementById('cm-active').checked = DB.isMembershipActive(coach);
+  openModal('modal-coach-membership');
+}
+function saveCoachMembership() {
+  const expiry = document.getElementById('cm-expiry').value;
+  const active = document.getElementById('cm-active').checked;
+  if (!expiry) {
+    alert('Please set an expiry date.');
+    return;
+  }
+  DB.updateUser(_coachMembershipId, {
+    membershipExpiry: expiry + 'T23:59:59Z',
+    membershipActive: active
+  });
+  closeModal('modal-coach-membership');
+  renderCoaches();
+  renderOverview();
+}
+
 // ── Boot ──
 showPage('overview');
 if (window.innerWidth > 768 && localStorage.getItem('sidebar_collapsed') === '1') {
   document.querySelector('.dashboard').classList.add('sidebar-collapsed');
 }
 </script>
+
+<!-- Coach Membership Modal -->
+<div class="modal" id="modal-coach-membership">
+  <div class="modal-content" style="max-width:400px">
+    <h2 style="margin-bottom:20px">Manage Coach Membership</h2>
+    <div style="margin-bottom:16px">
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:6px">Coach</div>
+      <div style="font-size:15px;font-weight:600" id="cm-coach-name"></div>
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:13px;color:var(--text-muted);margin-bottom:6px">Expiry Date</label>
+      <input type="date" id="cm-expiry" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:14px">
+    </div>
+    <div style="margin-bottom:20px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="cm-active">
+        <span style="font-size:14px">Membership Active</span>
+      </label>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-coach-membership')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveCoachMembership()">💾 Save</button>
+    </div>
+  </div>
+</div>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
 </body>
 </html>

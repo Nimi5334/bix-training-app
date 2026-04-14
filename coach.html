@@ -182,12 +182,9 @@
         </div>
       </div>
 
-      <!-- Member renewals -->
-      <div class="section-divider" style="margin-bottom:16px">Member Renewals</div>
-      <div id="billing-list" style="display:grid;gap:20px"></div>
-      <div class="empty-state" id="billing-empty" style="display:none">
-        <div class="empty-icon">💳</div>
-        <p>No members available for renewal.</p>
+      <div class="empty-state" style="margin-top:40px">
+        <div class="empty-icon">✅</div>
+        <p>Members manage their own renewals from their personal dashboard.</p>
       </div>
     </div>
 
@@ -224,7 +221,13 @@
           style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px 12px;font-size:13px;outline:none">
           <option value="">All Members</option>
         </select>
-        <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="openCreatePlan()">+ New Program</button>
+        <button class="btn btn-secondary btn-sm" id="five-week-btn" onclick="toggleFiveWeekView()" style="margin-left:auto">📅 Next 5 Weeks</button>
+        <button class="btn btn-primary btn-sm" onclick="openCreatePlan()">+ New Program</button>
+      </div>
+      <div id="five-week-section" style="display:none;margin-bottom:20px;padding:16px;background:var(--surface2);border-radius:8px">
+        <label style="display:block;font-size:13px;color:var(--text-muted);margin-bottom:8px">Start Date</label>
+        <input type="date" id="five-week-start" onchange="renderFiveWeekView()" style="padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text)">
+        <div style="font-size:12px;color:var(--text-muted);margin-top:8px" id="five-week-info"></div>
       </div>
       <div id="plans-list"></div>
       <div class="empty-state" id="plans-empty" style="display:none">
@@ -764,7 +767,7 @@ function renderPlanCard(p) {
             <div class="exercise-name">${ex.name}</div>
             ${ex.notes ? `<div class="exercise-notes">${ex.notes}</div>` : ''}
           </div>
-          <div class="exercise-meta">${ex.sets} × ${ex.reps} · Rest ${ex.rest}</div>
+          <div class="exercise-meta">${ex.sets} × ${ex.reps} · RPE ${ex.rpe || 'N/A'}</div>
         </div>`).join('')}
     </div>`).join('');
 
@@ -878,7 +881,7 @@ function addExercise(dayIdx, data) {
     <div style="flex:2"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Exercise</div>${inp('ex-name', data?.name, 'e.g. Bench Press')}</div>
     <div style="flex:1"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Sets</div>${inp('ex-sets', data?.sets||3, '3', 'number', 'min="1" max="99"')}</div>
     <div style="flex:1"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Reps</div>${inp('ex-reps', data?.reps||'10', '8-12')}</div>
-    <div style="flex:1"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Rest</div>${inp('ex-rest', data?.rest||'60s', '90s')}</div>
+    <div style="flex:1"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">RPE (0-10)</div>${inp('ex-rpe', data?.rpe||'7', '7')}</div>
     <div style="flex:2"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Notes</div>${inp('ex-notes', data?.notes, 'Form cue…')}</div>
     <button onclick="document.getElementById('ex-${id}').remove()"
       style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;padding:0 4px;flex-shrink:0">✕</button>`;
@@ -909,7 +912,7 @@ function savePlan() {
         name,
         sets:  parseInt(exEl.querySelector('.ex-sets')?.value) || 3,
         reps:  exEl.querySelector('.ex-reps')?.value || '10',
-        rest:  exEl.querySelector('.ex-rest')?.value || '60s',
+        rpe:   exEl.querySelector('.ex-rpe')?.value || '7',
         notes: exEl.querySelector('.ex-notes')?.value.trim() || '',
       });
     });
@@ -943,30 +946,8 @@ function formatDate(iso) {
 // BILLING & PAYMENTS
 // ════════════════════════════════
 function renderBilling() {
-  const clients = DB.getClientsByCoach(session.id);
-  const billList = document.getElementById('billing-list');
-  const empty = document.getElementById('billing-empty');
-
-  // Filter to active members
-  const active = clients.filter(c => DB.isMembershipActive(c));
-
-  billList.innerHTML = active.length ? active.map(c => `
-    <div class="card" style="padding:20px">
-      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
-        <div>
-          <h3 style="font-size:16px;margin-bottom:4px">${c.name}</h3>
-          <p style="font-size:13px;color:var(--text-muted)">Expires: ${formatDate(c.membershipExpiry)}</p>
-        </div>
-        <span class="badge badge-green">Active</span>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
-        <button class="btn btn-primary" onclick="openPaymentForm('${c.id}', '${c.name}', 'card')" style="grid-column:1">💳 Credit Card</button>
-        <button class="btn btn-primary" onclick="openPaymentForm('${c.id}', '${c.name}', 'google')" style="grid-column:2">🔵 Google Pay</button>
-      </div>
-    </div>
-  `).join('') : '';
-
-  empty.style.display = active.length ? 'none' : 'block';
+  // Billing page now only shows coach's own subscription
+  // Member renewals are handled by members themselves from their dashboard
 }
 
 function openPaymentForm(memberId, memberName, method) {
@@ -1130,6 +1111,71 @@ function closeSidebar() {
   document.getElementById('sidebar-backdrop').classList.remove('open');
 }
 document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', closeSidebar));
+
+// ── 5-Week Program View ──
+let fiveWeekMode = false;
+function toggleFiveWeekView() {
+  fiveWeekMode = !fiveWeekMode;
+  const section = document.getElementById('five-week-section');
+  const btn = document.getElementById('five-week-btn');
+  if (fiveWeekMode) {
+    section.style.display = 'block';
+    btn.style.background = 'var(--primary)';
+    const today = new Date();
+    const dateStr = today.toISOString().split('T')[0];
+    document.getElementById('five-week-start').value = dateStr;
+    renderFiveWeekView();
+  } else {
+    section.style.display = 'none';
+    btn.style.background = '';
+    renderPlans();
+  }
+}
+
+function renderFiveWeekView() {
+  const startDateStr = document.getElementById('five-week-start').value;
+  if (!startDateStr) return;
+
+  const startDate = new Date(startDateStr);
+  const endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + 35); // 5 weeks = 35 days
+
+  document.getElementById('five-week-info').textContent =
+    `Programs from ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()} (Trainers will see this 5-week preview)`;
+
+  const allPlans = DB.getPlansByCoach(session.id);
+  const plansList = document.getElementById('plans-list');
+
+  plansList.innerHTML = allPlans.length ? allPlans.map(p => {
+    const client = DB.getUserById(p.clientId);
+    const createdDate = new Date(p.createdAt);
+    const withinRange = createdDate >= startDate && createdDate <= endDate;
+
+    return `
+    <div class="card" style="margin-bottom:20px;opacity:${withinRange ? '1' : '0.4'}">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+        <div>
+          <h3 style="font-size:16px;margin-bottom:4px">${p.title}</h3>
+          <p style="font-size:13px;color:var(--text-muted)">For ${client?.name} • ${p.durationWeeks} weeks</p>
+          <p style="font-size:12px;color:${withinRange ? 'var(--primary)' : 'var(--text-muted)'}">${withinRange ? '✅ Visible to trainer' : '⊘ Outside 5-week window'}</p>
+        </div>
+      </div>
+      <div class="plan-card-body" style="padding:0">
+        ${p.days.map((day, i) => `
+          <div class="day-section" style="border-top:1px solid var(--border);padding-top:12px;padding-bottom:12px">
+            <h4 style="font-size:14px;font-weight:600;margin-bottom:12px">${day.label}</h4>
+            ${day.exercises.map(ex => `
+              <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">
+                ${ex.name} — ${ex.sets}×${ex.reps} RPE ${ex.rpe || 'N/A'}
+                ${ex.notes ? `<div style="margin-top:4px;color:var(--text-muted);font-size:12px">${ex.notes}</div>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty-state"><div class="empty-icon">📋</div><p>No programs in this 5-week window.</p></div>';
+}
 
 // ── Boot ──
 showPage('overview');
