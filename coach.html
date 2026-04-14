@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Coach Dashboard</title>
+  <link rel="stylesheet" href="style.css?v=20260414" />
+  <style>html{background:#0f0f0f}</style>
+  <script src="db.js?v=20260414"></script>
+  <script>(function(){try{var s=JSON.parse(sessionStorage.getItem('gym_session'));if(!s||!['coach','admin'].includes(s.role))location.replace('index.html');}catch(e){location.replace('index.html');}})();</script>
+  <style>
+    .member-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      transition: border-color .2s;
+    }
+    .member-card:hover { border-color: #555; }
+    .member-card.expired { opacity: .65; }
+    .member-avatar {
+      width: 44px; height: 44px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 700; flex-shrink: 0;
+    }
+    .member-info { flex: 1; min-width: 140px; }
+    .member-name { font-weight: 700; font-size: 15px; }
+    .member-meta { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+    .member-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .section-divider {
+      font-size: 12px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--text-muted);
+      margin: 24px 0 12px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .section-divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+  </style>
+</head>
+<body>
+<div class="dashboard">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="icon">🏋️</div>
+      <h2 id="sidebar-biz"><span>GymPlan</span></h2>
+      <span class="role-badge role-coach">Coach</span>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-item active" onclick="showPage('overview')" data-page="overview">
+        <span class="nav-icon">📊</span> Overview
+      </div>
+      <div class="nav-item" onclick="showPage('members')" data-page="members">
+        <span class="nav-icon">👥</span> Members
+      </div>
+      <div class="nav-item" onclick="showPage('billing')" data-page="billing">
+        <span class="nav-icon">💳</span> Billing
+      </div>
+      <div class="nav-item" onclick="showPage('plans')" data-page="plans">
+        <span class="nav-icon">📋</span> Programs
+      </div>
+      <div class="nav-item" onclick="showPage('settings')" data-page="settings">
+        <span class="nav-icon">⚙️</span> Settings
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" id="coach-avatar"></div>
+        <div>
+          <div class="user-name"  id="coach-name"></div>
+          <div class="user-email" style="font-size:11px;color:var(--text-muted)" id="coach-username"></div>
+        </div>
+      </div>
+      <button class="btn btn-secondary btn-block btn-sm" onclick="logout()">Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-content">
+    <div class="main-header">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="sidebar-toggle" onclick="toggleSidebar()">☰</button>
+        <div>
+          <h1 id="page-title">Overview</h1>
+          <p id="page-sub" style="font-size:13px;color:var(--text-muted);margin-top:2px"></p>
+        </div>
+      </div>
+      <div id="page-action"></div>
+    </div>
+
+    <!-- ══ OVERVIEW ══ -->
+    <div class="page active" id="page-overview">
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-icon">✅</div>
+          <div class="stat-value" id="stat-active">0</div>
+          <div class="stat-label">Active Members</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⛔</div>
+          <div class="stat-value" id="stat-expired">0</div>
+          <div class="stat-label">Expired</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📋</div>
+          <div class="stat-value" id="stat-plans">0</div>
+          <div class="stat-label">Programs</div>
+        </div>
+      </div>
+
+      <!-- Expiring soon -->
+      <div id="expiring-soon-wrap" style="display:none;margin-bottom:20px">
+        <div class="section-divider">⚠️ Expiring within 14 days</div>
+        <div id="expiring-soon-list"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-header">
+          <h2>Recent Programs</h2>
+          <button class="btn btn-primary btn-sm" onclick="showPage('plans'); openCreatePlan()">+ New Program</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Program</th><th>Member</th><th>Duration</th><th>Status</th></tr></thead>
+            <tbody id="recent-plans-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MEMBERS ══ -->
+    <div class="page" id="page-members">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:20px">
+        <button class="btn btn-primary btn-sm" onclick="openAddMember()">+ Add Member</button>
+      </div>
+
+      <!-- Active -->
+      <div class="section-divider" style="color:var(--green)">✅ Active Members <span id="active-count" style="color:var(--text-muted)"></span></div>
+      <div id="active-members-list"></div>
+      <div class="empty-state" id="active-empty" style="display:none;padding:24px 0">
+        <p>No active members yet.</p>
+      </div>
+
+      <!-- Expired -->
+      <div class="section-divider" style="color:#e74c3c;margin-top:32px">⛔ Expired Memberships <span id="expired-count" style="color:var(--text-muted)"></span></div>
+      <div id="expired-members-list"></div>
+      <div class="empty-state" id="expired-empty" style="display:none;padding:24px 0">
+        <p>No expired memberships.</p>
+      </div>
+    </div>
+
+    <!-- ══ BILLING ══ -->
+    <div class="page" id="page-billing">
+
+      <!-- Coach own subscription -->
+      <div class="card" style="margin-bottom:28px;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <div>
+            <h3 style="font-size:16px;font-weight:700;margin-bottom:4px">Your BIX Subscription</h3>
+            <p id="coach-sub-expiry" style="font-size:13px;color:var(--text-muted)"></p>
+          </div>
+          <span id="coach-sub-badge"></span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <button class="btn btn-primary" onclick="openCoachPayment('card')">💳 Credit Card</button>
+          <button onclick="openCoachPayment('google')" style="background:#1a1a1a;color:#fff;border:2px solid #4285f4;border-radius:10px;padding:9px 12px;font-weight:700;font-size:13px;cursor:pointer">
+            <span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span> Pay
+          </button>
+          <button onclick="openCoachPayment('paypal')" style="background:#003087;color:#fff;border:none;border-radius:10px;padding:9px 12px;font-weight:700;font-size:13px;cursor:pointer">
+            <span style="color:#009cde">Pay</span><span style="color:#fff">Pal</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Member renewals -->
+      <div class="section-divider" style="margin-bottom:16px">Member Renewals</div>
+      <div id="billing-list" style="display:grid;gap:20px"></div>
+      <div class="empty-state" id="billing-empty" style="display:none">
+        <div class="empty-icon">💳</div>
+        <p>No members available for renewal.</p>
+      </div>
+    </div>
+
+    <!-- ══ SETTINGS ══ -->
+    <div class="page" id="page-settings">
+      <div class="card" style="max-width:480px">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:20px">Dashboard Colors</h3>
+        <div class="form-group">
+          <label>Background Color</label>
+          <input type="color" id="coach-bg-color" value="#0f0f0f" style="width:100%;height:44px;cursor:pointer;border-radius:var(--radius);border:1px solid var(--border);background:none;padding:4px" />
+        </div>
+        <div class="form-group">
+          <label>Accent Color</label>
+          <input type="color" id="coach-accent-color" value="#e8442a" style="width:100%;height:44px;cursor:pointer;border-radius:var(--radius);border:1px solid var(--border);background:none;padding:4px" />
+        </div>
+        <div id="apply-clients-wrap" style="display:none;margin-bottom:20px;padding:14px;background:var(--surface2);border-radius:var(--radius)">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px">
+            <input type="checkbox" id="coach-apply-clients" style="width:16px;height:16px;cursor:pointer" />
+            Apply these colors to my clients' dashboards too
+          </label>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-primary" onclick="saveCoachSettings()">Save Settings</button>
+          <button class="btn btn-secondary" onclick="resetCoachColors()">Reset to Default</button>
+        </div>
+        <div class="alert alert-success" id="coach-settings-success" style="margin-top:14px"></div>
+      </div>
+    </div>
+
+    <!-- ══ PROGRAMS ══ -->
+    <div class="page" id="page-plans">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+        <select id="filter-client" onchange="renderPlans()"
+          style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px 12px;font-size:13px;outline:none">
+          <option value="">All Members</option>
+        </select>
+        <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="openCreatePlan()">+ New Program</button>
+      </div>
+      <div id="plans-list"></div>
+      <div class="empty-state" id="plans-empty" style="display:none">
+        <div class="empty-icon">📋</div>
+        <p>No programs yet. Create one for a member!</p>
+      </div>
+    </div>
+
+
+  </main>
+</div>
+
+<!-- ══ MODAL: Add / Edit Member ══ -->
+<div class="modal-overlay" id="modal-member">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="member-modal-title">Add Member</h2>
+      <button class="modal-close" onclick="closeModal('modal-member')">×</button>
+    </div>
+    <input type="hidden" id="m-id" />
+    <div class="alert alert-error" id="m-error"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group" style="margin:0">
+        <label>Full Name</label>
+        <input type="text" id="m-name" placeholder="Jane Smith" />
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Username</label>
+        <input type="text" id="m-username" placeholder="janesmith" />
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:12px">
+      <label>Password <span id="m-pass-hint" style="color:var(--text-muted)"></span></label>
+      <input type="text" id="m-pass" placeholder="Min 6 characters" />
+    </div>
+    <div class="form-group">
+      <label>Membership Expiry Date</label>
+      <input type="date" id="m-expiry" />
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-secondary" onclick="closeModal('modal-member')">Cancel</button>
+      <button class="btn btn-primary"   onclick="saveMember()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Create / Edit Plan ══ -->
+<div class="modal-overlay" id="modal-plan">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <h2 id="plan-modal-title">Create Program</h2>
+      <button class="modal-close" onclick="closeModal('modal-plan')">×</button>
+    </div>
+    <div class="alert alert-error" id="plan-error"></div>
+    <input type="hidden" id="plan-id" />
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Program Title</label>
+        <input type="text" id="plan-title" placeholder="e.g. 8-Week Strength Builder" />
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Assign to Member</label>
+        <select id="plan-client"></select>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Goal</label>
+        <input type="text" id="plan-goal" placeholder="e.g. Build muscle" />
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Duration (weeks)</label>
+        <input type="number" id="plan-weeks" value="8" min="1" max="52" />
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Status</label>
+        <select id="plan-status">
+          <option value="active">Active</option>
+          <option value="draft">Draft</option>
+          <option value="completed">Completed</option>
+        </select>
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <div class="section-header">
+      <h2>Training Days &amp; Exercises</h2>
+      <button class="btn btn-secondary btn-sm" onclick="addDay()">+ Add Day</button>
+    </div>
+    <div id="days-container"></div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
+      <button class="btn btn-secondary" onclick="closeModal('modal-plan')">Cancel</button>
+      <button class="btn btn-primary"   onclick="savePlan()">Save Program</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PAYMENT: CREDIT CARD MODAL ══ -->
+<div class="modal-overlay" id="modal-payment-card">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-header">
+      <h2>Credit Card Payment</h2>
+      <button class="modal-close" onclick="closeModal('modal-payment-card')">×</button>
+    </div>
+    <div class="alert alert-error" id="payment-card-error"></div>
+
+    <input type="hidden" id="payment-member-id" />
+
+    <div class="form-group">
+      <label>Member</label>
+      <input type="text" id="payment-member-name" disabled />
+    </div>
+
+    <div class="form-group">
+      <label>Amount ($)</label>
+      <input type="number" id="payment-amount" placeholder="100.00" min="1" step="0.01" />
+    </div>
+
+    <div class="form-group">
+      <label>Renewal Duration</label>
+      <select id="payment-duration">
+        <option value="1">1 Month</option>
+        <option value="3">3 Months</option>
+        <option value="12" selected>1 Year</option>
+      </select>
+    </div>
+
+    <div style="background:var(--surface2);padding:16px;border-radius:10px;margin:16px 0">
+      <label style="font-size:13px;color:var(--text-muted);margin-bottom:8px;display:block">Card Number</label>
+      <input type="text" id="payment-card-number" placeholder="4111 1111 1111 1111" maxlength="19" />
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+        <div>
+          <label style="font-size:13px;color:var(--text-muted);margin-bottom:4px;display:block">MM/YY</label>
+          <input type="text" id="payment-expiry" placeholder="12/25" maxlength="5" />
+        </div>
+        <div>
+          <label style="font-size:13px;color:var(--text-muted);margin-bottom:4px;display:block">CVC</label>
+          <input type="text" id="payment-cvc" placeholder="123" maxlength="4" />
+        </div>
+      </div>
+
+      <label style="font-size:13px;color:var(--text-muted);margin-top:12px;margin-bottom:4px;display:block">Cardholder Name</label>
+      <input type="text" id="payment-name" placeholder="John Doe" />
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="closeModal('modal-payment-card')">Cancel</button>
+      <button class="btn btn-primary" onclick="processCardPayment()">Pay Now</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PAYMENT: GOOGLE PAY MODAL ══ -->
+<div class="modal-overlay" id="modal-payment-google">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <h2>Google Pay</h2>
+      <button class="modal-close" onclick="closeModal('modal-payment-google')">×</button>
+    </div>
+
+    <input type="hidden" id="payment-google-member-id" />
+    <input type="hidden" id="payment-google-amount" />
+    <input type="hidden" id="payment-google-duration" />
+
+    <div style="text-align:center;padding:32px 20px">
+      <div style="font-size:48px;margin-bottom:16px">🔐</div>
+      <p style="font-size:14px;margin-bottom:20px">Confirm payment with Google Pay</p>
+
+      <div style="background:var(--surface2);padding:16px;border-radius:10px;margin:20px 0;text-align:left">
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+          <span style="color:var(--text-muted)">Member:</span>
+          <span id="payment-google-member-name" style="font-weight:600"></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+          <span style="color:var(--text-muted)">Amount:</span>
+          <span style="font-weight:600">$<span id="payment-google-display-amount">0.00</span></span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span style="color:var(--text-muted)">Duration:</span>
+          <span id="payment-google-display-duration" style="font-weight:600">1 Month</span>
+        </div>
+      </div>
+
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:20px">You will be redirected to Google Pay to complete this transaction.</p>
+
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-secondary btn-block" onclick="closeModal('modal-payment-google')">Cancel</button>
+        <button class="btn btn-primary btn-block" onclick="processGooglePayment()">Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COACH EXPIRED OVERLAY ══ -->
+<div id="coach-expired-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.93);z-index:500;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center">
+  <div style="font-size:64px;margin-bottom:16px">🔒</div>
+  <h2 style="font-size:26px;font-weight:700;margin-bottom:10px;color:#fff">Subscription Expired</h2>
+  <p style="font-size:14px;color:#aaa;margin-bottom:32px;max-width:420px;line-height:1.6">
+    Your BIX coach subscription has expired.<br/>Renew below to regain full access.
+  </p>
+  <div style="display:flex;flex-direction:column;gap:12px;width:100%;max-width:340px">
+    <button class="btn btn-primary btn-block" style="font-size:15px;padding:12px" onclick="openCoachPayment('card')">💳 Pay with Credit Card</button>
+    <button onclick="openCoachPayment('google')" style="background:#1a1a1a;color:#fff;border:2px solid #4285f4;border-radius:10px;padding:12px 18px;font-weight:700;font-size:15px;cursor:pointer;width:100%">
+      <span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span>&nbsp;Pay
+    </button>
+    <button onclick="openCoachPayment('paypal')" style="background:#003087;color:#fff;border:none;border-radius:10px;padding:12px 18px;font-weight:700;font-size:15px;cursor:pointer;width:100%">
+      <span style="color:#009cde">Pay</span><span style="color:#fff">Pal</span>
+    </button>
+  </div>
+</div>
+
+<!-- ══ PAYMENT: PAYPAL MODAL ══ -->
+<div class="modal-overlay" id="modal-payment-paypal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <h2><span style="color:#009cde">Pay</span><span style="color:#012169; filter:brightness(3)">Pal</span></h2>
+      <button class="modal-close" onclick="closeModal('modal-payment-paypal')">×</button>
+    </div>
+    <input type="hidden" id="payment-paypal-target-id" />
+    <div style="text-align:center;padding:12px 0 20px">
+      <div style="font-size:52px;margin-bottom:14px">🔵</div>
+      <p style="font-size:14px;color:var(--text-muted);margin-bottom:20px">You will be securely redirected to PayPal to complete payment.</p>
+      <div class="form-group" style="text-align:left">
+        <label>Duration</label>
+        <select id="paypal-duration" onchange="updatePaypalDisplay()">
+          <option value="1">1 Month — $29.99</option>
+          <option value="3">3 Months — $79.99</option>
+          <option value="12" selected>1 Year — $249.99</option>
+        </select>
+      </div>
+      <div style="background:var(--surface2);padding:16px;border-radius:10px;text-align:left">
+        <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+          <span style="color:var(--text-muted)">Plan</span>
+          <span id="paypal-plan-label" style="font-weight:600">1 Year</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span style="color:var(--text-muted)">Total</span>
+          <span style="font-weight:700;font-size:16px">$<span id="paypal-amount-display">249.99</span></span>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="closeModal('modal-payment-paypal')">Cancel</button>
+      <button onclick="processPayPalPayment()" style="background:#003087;color:#fff;border:none;border-radius:10px;padding:9px 22px;font-weight:700;font-size:14px;cursor:pointer">
+        Confirm with <span style="color:#009cde">Pay</span>Pal
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const session = DB.getSession();
+
+// ── Branding ──
+function applyBranding() {
+  const s     = DB.getSettings();
+  const coach = DB.getUserById(session.id);
+  const bgColor     = (coach && coach.hasCustomColors && coach.bgColor)     ? coach.bgColor     : (s.bgColor     || '#0f0f0f');
+  const accentColor = (coach && coach.hasCustomColors && coach.accentColor) ? coach.accentColor : (s.accentColor || '#e8442a');
+  document.documentElement.style.setProperty('--bg',           bgColor);
+  document.documentElement.style.setProperty('--primary',      accentColor);
+  document.documentElement.style.setProperty('--primary-dark', accentColor);
+  const bizEl = document.getElementById('sidebar-biz');
+  if (bizEl) bizEl.innerHTML = `<span style="color:var(--primary)">${s.businessName}</span>`;
+  document.title = s.businessName + ' – Coach';
+}
+applyBranding();
+
+// ── Coach membership guard ──
+function checkCoachMembership() {
+  const coach  = DB.getUserById(session.id);
+  const active = DB.isMembershipActive(coach);
+  const overlay = document.getElementById('coach-expired-overlay');
+  overlay.style.display = active ? 'none' : 'flex';
+  document.querySelectorAll('.nav-item').forEach(n => {
+    const locked = !active && n.dataset.page !== 'billing';
+    n.style.opacity       = locked ? '0.35' : '';
+    n.style.pointerEvents = locked ? 'none'  : '';
+  });
+  if (!active) showPage('billing');
+}
+checkCoachMembership();
+
+// ── Init header ──
+document.getElementById('coach-name').textContent     = session.name;
+document.getElementById('coach-username').textContent = '@' + session.username;
+document.getElementById('coach-avatar').textContent   = session.name.charAt(0).toUpperCase();
+
+function logout() { DB.clearSession(); location.href = 'index.html'; }
+
+// ── Navigation ──
+const pageInfo = {
+  overview: ['Overview',  'Welcome back, ' + session.name.split(' ')[0]],
+  members:  ['Members',   'Manage active & expired memberships'],
+  billing:  ['Billing',   'Renew member memberships'],
+  plans:    ['Programs',  'Create and assign training programs'],
+  settings: ['Settings',  'Customize your dashboard appearance'],
+};
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === name));
+  document.getElementById('page-' + name).classList.add('active');
+  document.getElementById('page-title').textContent = pageInfo[name][0];
+  document.getElementById('page-sub').textContent   = pageInfo[name][1];
+  if (name === 'overview') renderOverview();
+  if (name === 'members')  renderMembers();
+  if (name === 'billing')  renderBilling();
+  if (name === 'plans')    renderPlans();
+  if (name === 'settings') loadCoachSettings();
+}
+
+// ── Modals ──
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(o =>
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); })
+);
+
+// ════════════════════════════════
+// OVERVIEW
+// ════════════════════════════════
+function renderOverview() {
+  const clients = DB.getClientsByCoach(session.id);
+  const active  = clients.filter(c => DB.isMembershipActive(c));
+  const expired = clients.filter(c => !DB.isMembershipActive(c));
+  const plans   = DB.getPlansByCoach(session.id);
+
+  document.getElementById('stat-active').textContent  = active.length;
+  document.getElementById('stat-expired').textContent = expired.length;
+  document.getElementById('stat-plans').textContent   = plans.length;
+
+  // Expiring within 14 days
+  const today    = new Date();
+  const soon14   = new Date(); soon14.setDate(today.getDate() + 14);
+  const expiring = active.filter(c => {
+    const d = new Date(c.membershipExpiry);
+    return d <= soon14;
+  });
+  const soonWrap = document.getElementById('expiring-soon-wrap');
+  const soonList = document.getElementById('expiring-soon-list');
+  if (expiring.length) {
+    soonWrap.style.display = '';
+    soonList.innerHTML = expiring.map(c => `
+      <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(243,156,18,.08);border:1px solid rgba(243,156,18,.25);border-radius:10px;padding:12px 16px;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div>
+          <strong>${c.name}</strong>
+          <span style="font-size:12px;color:var(--text-muted);margin-left:8px">@${c.username}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="badge badge-yellow">Expires ${formatDate(c.membershipExpiry)}</span>
+          <button class="btn btn-secondary btn-sm" onclick="openEditMember('${c.id}')">Renew</button>
+        </div>
+      </div>`).join('');
+  } else {
+    soonWrap.style.display = 'none';
+  }
+
+  // Recent plans
+  const tbody  = document.getElementById('recent-plans-body');
+  const recent = [...plans].sort((a,b) => new Date(b.createdAt)-new Date(a.createdAt)).slice(0,6);
+  tbody.innerHTML = recent.length
+    ? recent.map(p => {
+        const c = DB.getUserById(p.clientId);
+        return `<tr>
+          <td>${p.title}</td>
+          <td>${c ? c.name : '—'}</td>
+          <td>${p.durationWeeks}w · ${p.days.length}d/wk</td>
+          <td>${statusBadge(p.status)}</td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px">No programs yet</td></tr>';
+}
+
+// ════════════════════════════════
+// MEMBERS
+// ════════════════════════════════
+function renderMembers() {
+  const clients = DB.getClientsByCoach(session.id);
+  const active  = clients.filter(c => DB.isMembershipActive(c));
+  const expired = clients.filter(c => !DB.isMembershipActive(c));
+
+  document.getElementById('active-count').textContent  = `(${active.length})`;
+  document.getElementById('expired-count').textContent = `(${expired.length})`;
+
+  renderMemberList('active-members-list',  'active-empty',  active,  true);
+  renderMemberList('expired-members-list', 'expired-empty', expired, false);
+}
+
+function renderMemberList(listId, emptyId, clients, isActive) {
+  const container = document.getElementById(listId);
+  const empty     = document.getElementById(emptyId);
+  empty.style.display     = clients.length ? 'none' : 'block';
+  container.style.display = clients.length ? '' : 'none';
+
+  container.innerHTML = clients.map(c => {
+    const planCount = DB.getPlansByClient(c.id).length;
+    const initials  = c.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    const avatarBg  = isActive ? 'var(--primary)' : '#555';
+    const expLabel  = c.membershipExpiry
+      ? (isActive ? `Expires ${formatDate(c.membershipExpiry)}` : `Expired ${formatDate(c.membershipExpiry)}`)
+      : 'No expiry set';
+    const badge = isActive
+      ? `<span class="badge badge-green">Active</span>`
+      : `<span class="badge badge-red">Expired</span>`;
+
+    const actions = isActive
+      ? `<button class="btn btn-primary btn-sm"    onclick="viewMemberPrograms('${c.id}')">📋 Programs</button>
+         <button class="btn btn-secondary btn-sm"  onclick="openEditMember('${c.id}')">✏️ Edit</button>
+         <button class="btn btn-danger btn-sm"     onclick="deleteMember('${c.id}')">Remove</button>`
+      : `<button class="btn btn-success btn-sm"    onclick="openEditMember('${c.id}')">🔄 Renew</button>
+         <button class="btn btn-secondary btn-sm"  onclick="viewMemberPrograms('${c.id}')">📋 View</button>
+         <button class="btn btn-danger btn-sm"     onclick="deleteMember('${c.id}')">Remove</button>`;
+
+    return `
+      <div class="member-card ${isActive ? '' : 'expired'}">
+        <div class="member-avatar" style="background:${avatarBg}">${initials}</div>
+        <div class="member-info">
+          <div class="member-name">${c.name} ${badge}</div>
+          <div class="member-meta">@${c.username} · ${planCount} program${planCount!==1?'s':''} · ${expLabel}</div>
+        </div>
+        <div class="member-actions">${actions}</div>
+      </div>`;
+  }).join('');
+}
+
+// ── Add member ──
+function openAddMember() {
+  document.getElementById('member-modal-title').textContent = 'Add Member';
+  document.getElementById('m-id').value       = '';
+  document.getElementById('m-name').value     = '';
+  document.getElementById('m-username').value = '';
+  document.getElementById('m-pass').value     = '';
+  document.getElementById('m-expiry').value   = '';
+  document.getElementById('m-pass-hint').textContent = '';
+  document.getElementById('m-error').className = 'alert alert-error';
+  // Default expiry: 1 year from today
+  const d = new Date(); d.setFullYear(d.getFullYear() + 1);
+  document.getElementById('m-expiry').value = d.toISOString().slice(0,10);
+  openModal('modal-member');
+}
+
+// ── Edit member ──
+function openEditMember(id) {
+  const c = DB.getUserById(id);
+  if (!c) return;
+  document.getElementById('member-modal-title').textContent = 'Edit Member';
+  document.getElementById('m-id').value       = c.id;
+  document.getElementById('m-name').value     = c.name;
+  document.getElementById('m-username').value = c.username;
+  document.getElementById('m-pass').value     = '';
+  document.getElementById('m-expiry').value   = c.membershipExpiry || '';
+  document.getElementById('m-pass-hint').textContent = '(leave blank to keep current)';
+  document.getElementById('m-error').className = 'alert alert-error';
+  openModal('modal-member');
+}
+
+function saveMember() {
+  const id       = document.getElementById('m-id').value;
+  const name     = document.getElementById('m-name').value.trim();
+  const username = document.getElementById('m-username').value.trim().toLowerCase();
+  const pass     = document.getElementById('m-pass').value;
+  const expiry   = document.getElementById('m-expiry').value;
+  const errEl    = document.getElementById('m-error');
+  errEl.className = 'alert alert-error';
+
+  if (!name || !username)     { errEl.textContent = 'Name and username are required.';   errEl.classList.add('show'); return; }
+  if (!id && pass.length < 6) { errEl.textContent = 'Password must be at least 6 chars.'; errEl.classList.add('show'); return; }
+  if (!expiry)                 { errEl.textContent = 'Please set a membership expiry date.'; errEl.classList.add('show'); return; }
+
+  // Check username unique
+  const existing = DB.getUserByUsername(username);
+  if (existing && existing.id !== id) { errEl.textContent = 'That username is already taken.'; errEl.classList.add('show'); return; }
+
+  if (id) {
+    const patch = { name, username, membershipExpiry: expiry };
+    if (pass.length >= 6) patch.password = pass;
+    DB.updateUser(id, patch);
+  } else {
+    DB.addUser({ id: DB.genId(), role: 'client', name, username, password: pass, coachId: session.id, membershipExpiry: expiry });
+  }
+  closeModal('modal-member');
+  renderMembers();
+  renderOverview();
+}
+
+function deleteMember(id) {
+  if (!confirm('Remove this member and all their programs?')) return;
+  DB.deleteUser(id);
+  renderMembers();
+  renderOverview();
+}
+
+function viewMemberPrograms(clientId) {
+  showPage('plans');
+  document.getElementById('filter-client').value = clientId;
+  renderPlans();
+}
+
+// ════════════════════════════════
+// PROGRAMS
+// ════════════════════════════════
+function renderPlans(filterClientId) {
+  // Populate filter dropdown
+  const sel     = document.getElementById('filter-client');
+  const clients = DB.getClientsByCoach(session.id);
+  sel.innerHTML = '<option value="">All Members</option>' +
+    clients.map(c => `<option value="${c.id}" ${(filterClientId || sel.value) === c.id ? 'selected':''} >${c.name}${DB.isMembershipActive(c)?'':' (expired)'}</option>`).join('');
+
+  const chosen = filterClientId || sel.value;
+  let plans = DB.getPlansByCoach(session.id);
+  if (chosen) plans = plans.filter(p => p.clientId === chosen);
+
+  const container = document.getElementById('plans-list');
+  const empty     = document.getElementById('plans-empty');
+  if (!plans.length) { container.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+
+  plans = [...plans].sort((a,b) => new Date(b.createdAt)-new Date(a.createdAt));
+  container.innerHTML = plans.map(p => renderPlanCard(p)).join('');
+}
+
+function renderPlanCard(p) {
+  const client     = DB.getUserById(p.clientId);
+  const isExpired  = client && !DB.isMembershipActive(client);
+  const lockedNote = isExpired
+    ? `<div style="background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.25);border-radius:8px;padding:8px 14px;font-size:13px;color:#e74c3c;margin-bottom:14px">⛔ This member's membership has expired. Renew it to activate editing.</div>`
+    : '';
+
+  const daysHtml = p.days.map(d => `
+    <div class="day-section">
+      <div class="day-label">${d.label}</div>
+      ${d.exercises.map(ex => `
+        <div class="exercise-row">
+          <div>
+            <div class="exercise-name">${ex.name}</div>
+            ${ex.notes ? `<div class="exercise-notes">${ex.notes}</div>` : ''}
+          </div>
+          <div class="exercise-meta">${ex.sets} × ${ex.reps} · Rest ${ex.rest}</div>
+        </div>`).join('')}
+    </div>`).join('');
+
+  const editBtn = `<button class="btn btn-secondary btn-sm" onclick="editPlan('${p.id}')">✏️ Edit</button>`;
+  const delBtn  = `<button class="btn btn-danger btn-sm" onclick="deletePlan('${p.id}')">🗑 Delete</button>`;
+
+  return `
+    <div class="plan-card">
+      <div class="plan-card-header">
+        <div>
+          <h3>${p.title}</h3>
+          <div style="font-size:13px;color:var(--text-muted);margin-top:4px">
+            ${client ? '👤 ' + client.name + ' · ' : ''}🎯 ${p.goal||'—'} · 📅 ${p.durationWeeks}w · ${p.days.length}d/wk
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          ${statusBadge(p.status)}
+          ${editBtn} ${delBtn}
+        </div>
+      </div>
+      <div class="plan-card-body">${lockedNote}${daysHtml}</div>
+    </div>`;
+}
+
+function deletePlan(id) {
+  if (!confirm('Delete this program?')) return;
+  DB.deletePlan(id);
+  renderPlans();
+  renderOverview();
+}
+
+// ════════════════════════════════
+// CREATE / EDIT PLAN MODAL
+// ════════════════════════════════
+let dayCount = 0;
+
+function openCreatePlan() {
+  document.getElementById('plan-modal-title').textContent = 'Create Program';
+  document.getElementById('plan-id').value     = '';
+  document.getElementById('plan-title').value  = '';
+  document.getElementById('plan-goal').value   = '';
+  document.getElementById('plan-weeks').value  = '8';
+  document.getElementById('plan-status').value = 'active';
+  document.getElementById('plan-error').className = 'alert alert-error';
+  populatePlanClients();
+  dayCount = 0;
+  document.getElementById('days-container').innerHTML = '';
+  addDay();
+  openModal('modal-plan');
+}
+
+function editPlan(id) {
+  const p = DB.getPlanById(id);
+  if (!p) return;
+  document.getElementById('plan-modal-title').textContent = 'Edit Program';
+  document.getElementById('plan-id').value     = p.id;
+  document.getElementById('plan-title').value  = p.title;
+  document.getElementById('plan-goal').value   = p.goal || '';
+  document.getElementById('plan-weeks').value  = p.durationWeeks;
+  document.getElementById('plan-status').value = p.status;
+  document.getElementById('plan-error').className = 'alert alert-error';
+  populatePlanClients(p.clientId);
+  dayCount = 0;
+  document.getElementById('days-container').innerHTML = '';
+  p.days.forEach(d => addDay(d));
+  openModal('modal-plan');
+}
+
+function populatePlanClients(selectedId) {
+  const clients = DB.getClientsByCoach(session.id);
+  document.getElementById('plan-client').innerHTML = clients.length
+    ? clients.map(c => `<option value="${c.id}" ${c.id===selectedId?'selected':''}>${c.name}${DB.isMembershipActive(c)?'':' (expired)'}</option>`).join('')
+    : '<option value="">— No members —</option>';
+}
+
+function addDay(data) {
+  dayCount++;
+  const idx = dayCount;
+  const el  = document.createElement('div');
+  el.className = 'exercise-builder';
+  el.id = 'day-' + idx;
+  el.innerHTML = `
+    <div class="exercise-builder-header">
+      <input type="text" value="${data ? data.label : 'Day ' + idx}"
+        id="day-label-${idx}" placeholder="e.g. Monday – Push"
+        style="background:none;border:none;color:var(--text);font-weight:600;font-size:13px;width:60%;outline:none" />
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-secondary btn-sm" onclick="addExercise(${idx})">+ Exercise</button>
+        <button class="btn btn-danger btn-sm"    onclick="document.getElementById('day-${idx}').remove()">✕</button>
+      </div>
+    </div>
+    <div class="exercise-builder-body"><div id="exercises-${idx}"></div></div>`;
+  document.getElementById('days-container').appendChild(el);
+  if (data?.exercises) data.exercises.forEach(ex => addExercise(idx, ex));
+  else addExercise(idx);
+}
+
+let exCount = 0;
+function addExercise(dayIdx, data) {
+  exCount++;
+  const id  = exCount;
+  const row = document.createElement('div');
+  row.id = 'ex-' + id;
+  row.style.cssText = 'display:flex;align-items:flex-end;gap:8px;margin-bottom:8px';
+
+  const inp = (cls, val, ph, type='text', extra='') =>
+    `<input type="${type}" class="${cls}" value="${val||''}" placeholder="${ph}"
+      style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 10px;font-size:13px;outline:none" ${extra} />`;
+
+  row.innerHTML = `
+    <div style="flex:2"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Exercise</div>${inp('ex-name', data?.name, 'e.g. Bench Press')}</div>
+    <div style="flex:1"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Sets</div>${inp('ex-sets', data?.sets||3, '3', 'number', 'min="1" max="99"')}</div>
+    <div style="flex:1"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Reps</div>${inp('ex-reps', data?.reps||'10', '8-12')}</div>
+    <div style="flex:1"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Rest</div>${inp('ex-rest', data?.rest||'60s', '90s')}</div>
+    <div style="flex:2"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Notes</div>${inp('ex-notes', data?.notes, 'Form cue…')}</div>
+    <button onclick="document.getElementById('ex-${id}').remove()"
+      style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;padding:0 4px;flex-shrink:0">✕</button>`;
+  document.getElementById('exercises-' + dayIdx).appendChild(row);
+}
+
+function savePlan() {
+  const title    = document.getElementById('plan-title').value.trim();
+  const clientId = document.getElementById('plan-client').value;
+  const goal     = document.getElementById('plan-goal').value.trim();
+  const weeks    = parseInt(document.getElementById('plan-weeks').value) || 8;
+  const status   = document.getElementById('plan-status').value;
+  const errEl    = document.getElementById('plan-error');
+  errEl.className = 'alert alert-error';
+
+  if (!title)    { errEl.textContent = 'Program title is required.'; errEl.classList.add('show'); return; }
+  if (!clientId) { errEl.textContent = 'Please select a member.';    errEl.classList.add('show'); return; }
+
+  const days = [];
+  document.querySelectorAll('#days-container .exercise-builder').forEach(dayEl => {
+    const dayIdx    = dayEl.id.replace('day-','');
+    const label     = document.getElementById('day-label-'+dayIdx)?.value || 'Day';
+    const exercises = [];
+    dayEl.querySelectorAll('[id^="ex-"]').forEach(exEl => {
+      const name = exEl.querySelector('.ex-name')?.value.trim();
+      if (!name) return;
+      exercises.push({
+        name,
+        sets:  parseInt(exEl.querySelector('.ex-sets')?.value) || 3,
+        reps:  exEl.querySelector('.ex-reps')?.value || '10',
+        rest:  exEl.querySelector('.ex-rest')?.value || '60s',
+        notes: exEl.querySelector('.ex-notes')?.value.trim() || '',
+      });
+    });
+    if (exercises.length) days.push({ label, exercises });
+  });
+
+  if (!days.length) { errEl.textContent = 'Add at least one exercise.'; errEl.classList.add('show'); return; }
+
+  const existingId = document.getElementById('plan-id').value;
+  if (existingId) {
+    DB.updatePlan(existingId, { title, clientId, goal, durationWeeks: weeks, daysPerWeek: days.length, status, days });
+  } else {
+    DB.addPlan({ id: DB.genId(), coachId: session.id, clientId, title, goal, durationWeeks: weeks, daysPerWeek: days.length, status, days, createdAt: new Date().toISOString() });
+  }
+  closeModal('modal-plan');
+  renderPlans();
+  renderOverview();
+}
+
+
+// ── Utils ──
+function statusBadge(s) {
+  const map = { active:'badge-green', draft:'badge-yellow', completed:'badge-blue' };
+  return `<span class="badge ${map[s]||'badge-blue'}">${s}</span>`;
+}
+function formatDate(iso) {
+  return new Date(iso).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+}
+
+// ════════════════════════════════
+// BILLING & PAYMENTS
+// ════════════════════════════════
+function renderBilling() {
+  const clients = DB.getClientsByCoach(session.id);
+  const billList = document.getElementById('billing-list');
+  const empty = document.getElementById('billing-empty');
+
+  // Filter to active members
+  const active = clients.filter(c => DB.isMembershipActive(c));
+
+  billList.innerHTML = active.length ? active.map(c => `
+    <div class="card" style="padding:20px">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+        <div>
+          <h3 style="font-size:16px;margin-bottom:4px">${c.name}</h3>
+          <p style="font-size:13px;color:var(--text-muted)">Expires: ${formatDate(c.membershipExpiry)}</p>
+        </div>
+        <span class="badge badge-green">Active</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+        <button class="btn btn-primary" onclick="openPaymentForm('${c.id}', '${c.name}', 'card')" style="grid-column:1">💳 Credit Card</button>
+        <button class="btn btn-primary" onclick="openPaymentForm('${c.id}', '${c.name}', 'google')" style="grid-column:2">🔵 Google Pay</button>
+      </div>
+    </div>
+  `).join('') : '';
+
+  empty.style.display = active.length ? 'none' : 'block';
+}
+
+function openPaymentForm(memberId, memberName, method) {
+  if (method === 'card') {
+    document.getElementById('payment-member-id').value = memberId;
+    document.getElementById('payment-member-name').value = memberName;
+    document.getElementById('payment-amount').value = '99.99';
+    document.getElementById('payment-card-number').value = '';
+    document.getElementById('payment-expiry').value = '';
+    document.getElementById('payment-cvc').value = '';
+    document.getElementById('payment-name').value = '';
+    document.getElementById('payment-card-error').style.display = 'none';
+    openModal('modal-payment-card');
+    document.getElementById('payment-card-number').focus();
+  } else if (method === 'google') {
+    document.getElementById('payment-google-member-id').value = memberId;
+    document.getElementById('payment-google-member-name').textContent = memberName;
+    document.getElementById('payment-google-amount').value = '99.99';
+    document.getElementById('payment-google-duration').value = '12';
+    document.getElementById('payment-google-display-amount').textContent = '99.99';
+    document.getElementById('payment-google-display-duration').textContent = '1 Year';
+    openModal('modal-payment-google');
+  }
+}
+
+function processCardPayment() {
+  const memberId = document.getElementById('payment-member-id').value;
+  const cardNum = document.getElementById('payment-card-number').value.replace(/\s/g, '');
+  const expiry = document.getElementById('payment-expiry').value;
+  const cvc = document.getElementById('payment-cvc').value;
+  const name = document.getElementById('payment-name').value;
+  const amount = document.getElementById('payment-amount').value;
+  const duration = parseInt(document.getElementById('payment-duration').value);
+  const errEl = document.getElementById('payment-card-error');
+
+  // Validation
+  if (!cardNum || cardNum.length < 13) {
+    errEl.textContent = 'Invalid card number.';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (!expiry || !expiry.match(/^\d{2}\/\d{2}$/)) {
+    errEl.textContent = 'Invalid expiry. Use MM/YY format.';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (!cvc || cvc.length < 3) {
+    errEl.textContent = 'Invalid CVC.';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (!name) {
+    errEl.textContent = 'Please enter cardholder name.';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (!amount || parseFloat(amount) < 1) {
+    errEl.textContent = 'Invalid amount.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  // Mocked payment processing
+  alert(`✅ Payment Processed!\n\nCard: ****${cardNum.slice(-4)}\nAmount: $${amount}\n\nMembership extended by ${duration} month(s).`);
+
+  // Update member membership expiry
+  const member = DB.getUserById(memberId);
+  if (member) {
+    const currentExp = new Date(member.membershipExpiry);
+    const newExp = new Date(currentExp);
+    newExp.setMonth(newExp.getMonth() + duration);
+    DB.updateUser(memberId, { membershipExpiry: newExp.toISOString().split('T')[0] });
+  }
+
+  closeModal('modal-payment-card');
+  renderBilling();
+}
+
+function processGooglePayment() {
+  const memberId = document.getElementById('payment-google-member-id').value;
+  const amount = document.getElementById('payment-google-amount').value;
+  const duration = parseInt(document.getElementById('payment-google-duration').value);
+
+  // Mocked Google Pay processing
+  alert(`✅ Google Pay Payment Processed!\n\nAmount: $${amount}\n\nMembership extended by ${duration} month(s).`);
+
+  // Update member membership expiry
+  const member = DB.getUserById(memberId);
+  if (member) {
+    const currentExp = new Date(member.membershipExpiry);
+    const newExp = new Date(currentExp);
+    newExp.setMonth(newExp.getMonth() + duration);
+    DB.updateUser(memberId, { membershipExpiry: newExp.toISOString().split('T')[0] });
+  }
+
+  closeModal('modal-payment-google');
+  renderBilling();
+}
+
+// ════════════════════════════════
+// SETTINGS
+// ════════════════════════════════
+function loadCoachSettings() {
+  const coach = DB.getUserById(session.id);
+  const s     = DB.getSettings();
+  const bgColor     = (coach && coach.hasCustomColors && coach.bgColor)     ? coach.bgColor     : (s.bgColor     || '#0f0f0f');
+  const accentColor = (coach && coach.hasCustomColors && coach.accentColor) ? coach.accentColor : (s.accentColor || '#e8442a');
+  document.getElementById('coach-bg-color').value     = bgColor;
+  document.getElementById('coach-accent-color').value = accentColor;
+  document.getElementById('coach-apply-clients').checked = !!(coach && coach.applyColorToClients);
+
+  // Show the apply-to-clients checkbox only when colors differ from global defaults
+  updateApplyClientsVisibility();
+
+  // Live-preview color changes + show checkbox
+  document.getElementById('coach-bg-color').oninput     = () => updateApplyClientsVisibility();
+  document.getElementById('coach-accent-color').oninput = () => updateApplyClientsVisibility();
+  document.getElementById('coach-settings-success').classList.remove('show');
+}
+
+function updateApplyClientsVisibility() {
+  const defBg     = '#0f0f0f';
+  const defAccent = '#e8442a';
+  const bg     = document.getElementById('coach-bg-color').value;
+  const accent = document.getElementById('coach-accent-color').value;
+  const changed = bg.toLowerCase() !== defBg.toLowerCase() || accent.toLowerCase() !== defAccent.toLowerCase();
+  document.getElementById('apply-clients-wrap').style.display = changed ? '' : 'none';
+}
+
+function saveCoachSettings() {
+  const bg     = document.getElementById('coach-bg-color').value;
+  const accent = document.getElementById('coach-accent-color').value;
+  const applyToClients = document.getElementById('coach-apply-clients').checked;
+  const isCustom = bg.toLowerCase() !== '#0f0f0f' || accent.toLowerCase() !== '#e8442a';
+  DB.updateUser(session.id, { bgColor: bg, accentColor: accent, hasCustomColors: isCustom, applyColorToClients: applyToClients });
+  applyBranding();
+  const el = document.getElementById('coach-settings-success');
+  el.textContent = 'Settings saved!';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+function resetCoachColors() {
+  DB.updateUser(session.id, { bgColor: null, accentColor: null, hasCustomColors: false, applyColorToClients: false });
+  loadCoachSettings();
+  applyBranding();
+}
+
+// ── Sidebar toggle (desktop collapse + mobile overlay) ──
+function toggleSidebar() {
+  if (window.innerWidth > 768) {
+    const collapsed = document.querySelector('.dashboard').classList.toggle('sidebar-collapsed');
+    localStorage.setItem('sidebar_collapsed', collapsed ? '1' : '0');
+  } else {
+    document.querySelector('.sidebar').classList.toggle('open');
+    document.getElementById('sidebar-backdrop').classList.toggle('open');
+  }
+}
+function closeSidebar() {
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebar-backdrop').classList.remove('open');
+}
+document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', closeSidebar));
+
+// ── Boot ──
+showPage('overview');
+if (window.innerWidth > 768 && localStorage.getItem('sidebar_collapsed') === '1') {
+  document.querySelector('.dashboard').classList.add('sidebar-collapsed');
+}
+</script>
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+</body>
+</html>

@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="style.css?v=20260414" />
+  <style>html{background:#0f0f0f}</style>
+  <script src="db.js?v=20260414"></script>
+  <script>(function(){try{var s=JSON.parse(sessionStorage.getItem('gym_session'));if(!s||s.role!=='admin')location.replace('index.html');}catch(e){location.replace('index.html');}})();</script>
+</head>
+<body>
+<div class="dashboard">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="icon">🏋️</div>
+      <h2 id="sidebar-biz"><span>BIX</span></h2>
+      <span class="role-badge" style="background:rgba(168,85,247,.15);color:#d8b4fe">Admin</span>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-item active" onclick="showPage('overview')" data-page="overview">
+        <span class="nav-icon">📊</span> Overview
+      </div>
+      <div class="nav-item" onclick="showPage('coaches')" data-page="coaches">
+        <span class="nav-icon">🧑‍💼</span> Coaches
+      </div>
+      <div class="nav-item" onclick="showPage('settings')" data-page="settings">
+        <span class="nav-icon">⚙️</span> Settings
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" id="admin-avatar"></div>
+        <div>
+          <div class="user-name" id="admin-name"></div>
+          <div class="user-email" id="admin-username" style="font-size:11px;color:var(--text-muted)"></div>
+        </div>
+      </div>
+      <button class="btn btn-secondary btn-block btn-sm" onclick="logout()">Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-content">
+    <div class="main-header">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="sidebar-toggle" onclick="toggleSidebar()">☰</button>
+        <div>
+          <h1 id="page-title">Overview</h1>
+          <p id="page-sub" style="font-size:13px;color:var(--text-muted);margin-top:2px"></p>
+        </div>
+      </div>
+      <div id="page-action"></div>
+    </div>
+
+    <!-- ══ OVERVIEW ══ -->
+    <div class="page active" id="page-overview">
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-icon">🧑‍💼</div>
+          <div class="stat-value" id="stat-coaches">0</div>
+          <div class="stat-label">Coaches</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">👥</div>
+          <div class="stat-value" id="stat-total-clients">0</div>
+          <div class="stat-label">Coaches + Clients</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">✅</div>
+          <div class="stat-value" id="stat-active-clients">0</div>
+          <div class="stat-label">Active</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⛔</div>
+          <div class="stat-value" id="stat-expired-clients">0</div>
+          <div class="stat-label">Expired</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📋</div>
+          <div class="stat-value" id="stat-programs">0</div>
+          <div class="stat-label">Programs</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-header">
+          <h2>Recent Activity</h2>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Coach</th><th>Clients</th><th>Programs</th><th>Last Updated</th></tr></thead>
+            <tbody id="recent-coaches-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ COACHES ══ -->
+    <div class="page" id="page-coaches">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:20px">
+        <button class="btn btn-primary btn-sm" onclick="openAddCoach()">+ Add Coach</button>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Username</th><th>Clients</th><th>Programs</th><th>Actions</th></tr></thead>
+            <tbody id="coaches-body" style="cursor:pointer"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="coaches-empty" style="display:none">
+          <div class="empty-icon">🧑‍💼</div>
+          <p>No coaches yet.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SETTINGS ══ -->
+    <div class="page" id="page-settings">
+      <div style="max-width:640px;display:flex;flex-direction:column;gap:20px">
+        <div class="card">
+          <h2 style="font-size:15px;margin-bottom:16px">🏢 Business</h2>
+          <div class="form-group">
+            <label>Business Name</label>
+            <input type="text" id="s-biz-name" placeholder="My Business" />
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="form-group" style="margin:0">
+              <label>Background Color</label>
+              <input type="color" id="s-bg-color" value="#0f0f0f" />
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>Accent Color</label>
+              <input type="color" id="s-accent-color" value="#e8442a" />
+            </div>
+          </div>
+          <div class="alert alert-error" id="settings-error" style="margin-top:12px"></div>
+          <div class="alert alert-success" id="settings-success" style="margin-top:12px"></div>
+          <button class="btn btn-primary" style="margin-top:8px" onclick="saveSettings()">Save Settings</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ══ MODAL: Coach → Clients ══ -->
+<div class="modal-overlay" id="modal-coach-clients">
+  <div class="modal" style="max-width:780px">
+    <div class="modal-header">
+      <h2>👥 <span id="cc-coach-name"></span> — Clients</h2>
+      <button class="modal-close" onclick="closeModal('modal-coach-clients')">×</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Status</th><th>Expiry</th><th>Programs</th><th>Actions</th></tr></thead>
+        <tbody id="cc-clients-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Client → Programs ══ -->
+<div class="modal-overlay" id="modal-client-plans">
+  <div class="modal" style="max-width:860px">
+    <div class="modal-header">
+      <h2>📋 <span id="cp-client-name"></span> — Programs</h2>
+      <button class="modal-close" onclick="closeModal('modal-client-plans')">×</button>
+    </div>
+    <div id="cp-plans-container" style="max-height:65vh;overflow-y:auto;padding-right:4px"></div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Add/Edit Coach ══ -->
+<div class="modal-overlay" id="modal-coach">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="coach-modal-title">Add Coach</h2>
+      <button class="modal-close" onclick="closeModal('modal-coach')">×</button>
+    </div>
+    <input type="hidden" id="c-id" />
+    <div class="alert alert-error" id="c-error"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group" style="margin:0">
+        <label>Full Name</label>
+        <input type="text" id="c-name" placeholder="John Trainer" />
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Username</label>
+        <input type="text" id="c-username" placeholder="johntrainer" />
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:12px">
+      <label>Password <span id="c-pass-hint" style="color:var(--text-muted)"></span></label>
+      <input type="text" id="c-pass" placeholder="Min 6 characters" />
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-secondary" onclick="closeModal('modal-coach')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCoach()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Edit Client ══ -->
+<div class="modal-overlay" id="modal-client">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Edit Client Membership</h2>
+      <button class="modal-close" onclick="closeModal('modal-client')">×</button>
+    </div>
+    <input type="hidden" id="cl-id" />
+    <div class="alert alert-error" id="cl-error"></div>
+    <div class="form-group">
+      <label>Client Name</label>
+      <input type="text" id="cl-name" disabled />
+    </div>
+    <div class="form-group">
+      <label>Coach</label>
+      <input type="text" id="cl-coach" disabled />
+    </div>
+    <div class="form-group">
+      <label>Membership Expiry Date</label>
+      <input type="date" id="cl-expiry" />
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-secondary" onclick="closeModal('modal-client')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveClient()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const session = DB.getSession();
+
+// ── Branding ──
+function applyBranding() {
+  const s = DB.getSettings();
+  document.documentElement.style.setProperty('--bg',           s.bgColor);
+  document.documentElement.style.setProperty('--accent',       s.accentColor);
+  document.documentElement.style.setProperty('--primary',      s.accentColor);
+  document.documentElement.style.setProperty('--primary-dark', s.accentColor);
+  document.getElementById('sidebar-biz').innerHTML = `<span style="color:var(--primary)">BIX</span>`;
+  document.title = 'BIX – Admin';
+}
+applyBranding();
+
+// ── Init header ──
+document.getElementById('admin-name').textContent = session.name;
+document.getElementById('admin-username').textContent = '@' + session.username;
+document.getElementById('admin-avatar').textContent = session.name.charAt(0).toUpperCase();
+
+function logout() { DB.clearSession(); location.href = 'index.html'; }
+
+// ── Navigation ──
+const pageInfo = {
+  overview: ['Overview', 'System-wide statistics and activity'],
+  coaches:  ['Coaches', 'Manage all coaches'],
+  settings: ['Settings', 'Configure business settings'],
+};
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === name));
+  document.getElementById('page-' + name).classList.add('active');
+  document.getElementById('page-title').textContent = pageInfo[name][0];
+  document.getElementById('page-sub').textContent = pageInfo[name][1];
+  if (name === 'overview') renderOverview();
+  if (name === 'coaches')  renderCoaches();
+  if (name === 'settings') loadSettings();
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); }));
+
+// ════════════════════════════════
+// OVERVIEW
+// ════════════════════════════════
+function renderOverview() {
+  const coaches = DB.getAllCoaches();
+  const clients = DB.getAllClients();
+  const active = clients.filter(c => DB.isMembershipActive(c));
+  const expired = clients.filter(c => !DB.isMembershipActive(c));
+  const plans = DB.getAllPlans();
+
+  document.getElementById('stat-coaches').textContent = coaches.length;
+  document.getElementById('stat-total-clients').textContent = coaches.length + clients.length;
+  document.getElementById('stat-active-clients').textContent = active.length;
+  document.getElementById('stat-expired-clients').textContent = expired.length;
+  document.getElementById('stat-programs').textContent = plans.length;
+
+  const tbody = document.getElementById('recent-coaches-body');
+  tbody.innerHTML = coaches.length
+    ? coaches.map(c => {
+        const cc = DB.getClientsByCoach(c.id).length;
+        const pp = DB.getPlansByCoachId(c.id).length;
+        return `<tr><td><strong>${c.name}</strong></td><td>${cc}</td><td>${pp}</td><td>Recently active</td></tr>`;
+      }).join('')
+    : '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px">No coaches yet</td></tr>';
+}
+
+// ════════════════════════════════
+// COACHES
+// ════════════════════════════════
+function renderCoaches() {
+  const coaches = DB.getAllCoaches();
+  const tbody = document.getElementById('coaches-body');
+  const empty = document.getElementById('coaches-empty');
+
+  empty.style.display = coaches.length ? 'none' : 'block';
+  tbody.parentElement.parentElement.style.display = coaches.length ? '' : 'none';
+
+  tbody.innerHTML = coaches.length
+    ? coaches.map(c => {
+        const cc = DB.getClientsByCoach(c.id).length;
+        const pp = DB.getPlansByCoachId(c.id).length;
+        return `<tr onclick="openCoachClients('${c.id}')" style="cursor:pointer" title="Click to view clients">
+          <td><strong>${c.name}</strong></td>
+          <td>@${c.username}</td>
+          <td>${cc}</td>
+          <td>${pp}</td>
+          <td onclick="event.stopPropagation()">
+            <button class="btn btn-secondary btn-sm" onclick="openEditCoach('${c.id}')">✏️ Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteCoach('${c.id}')" style="margin-left:6px">🗑 Delete</button>
+          </td>
+        </tr>`;
+      }).join('')
+    : '';
+}
+
+// ── Drill-down: Coach → Clients ──
+let _drillCoachId = null;
+function openCoachClients(coachId) {
+  _drillCoachId = coachId;
+  const coach = DB.getUserById(coachId);
+  document.getElementById('cc-coach-name').textContent = coach.name;
+  renderCoachClientsList();
+  openModal('modal-coach-clients');
+}
+
+function renderCoachClientsList() {
+  const clients = DB.getClientsByCoach(_drillCoachId);
+  const tbody = document.getElementById('cc-clients-body');
+  tbody.innerHTML = clients.length
+    ? clients.map(c => {
+        const active = DB.isMembershipActive(c);
+        const badge = active ? `<span class="badge badge-green">Active</span>` : `<span class="badge badge-red">Expired</span>`;
+        const plans = DB.getPlansByClient ? DB.getPlansByClient(c.id) : DB.getPlans().filter(p => p.clientId === c.id);
+        return `<tr onclick="openClientPlans('${c.id}')" style="cursor:pointer" title="Click to view programs">
+          <td><strong>${c.name}</strong></td>
+          <td>${badge}</td>
+          <td>${c.membershipExpiry ? formatDate(c.membershipExpiry) : '—'}</td>
+          <td>${plans.length}</td>
+          <td onclick="event.stopPropagation()">
+            <button class="btn btn-secondary btn-sm" onclick="openEditClient('${c.id}')">✏️ Membership</button>
+            <button class="btn btn-danger btn-sm" style="margin-left:6px" onclick="adminDeleteClient('${c.id}')">🗑 Delete</button>
+          </td>
+        </tr>`;
+      }).join('')
+    : `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px">No clients yet.</td></tr>`;
+}
+
+function adminDeleteClient(id) {
+  if (!confirm('Delete this client and all their programs?')) return;
+  DB.deleteUser(id);
+  renderCoachClientsList();
+  renderOverview();
+}
+
+// ── Drill-down: Client → Programs ──
+let _drillClientId = null;
+function openClientPlans(clientId) {
+  _drillClientId = clientId;
+  const client = DB.getUserById(clientId);
+  document.getElementById('cp-client-name').textContent = client.name;
+  renderClientPlansList();
+  openModal('modal-client-plans');
+}
+
+function renderClientPlansList() {
+  const plans = DB.getPlans().filter(p => p.clientId === _drillClientId);
+  const container = document.getElementById('cp-plans-container');
+  if (!plans.length) {
+    container.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:24px">No programs yet.</div>`;
+    return;
+  }
+  container.innerHTML = plans.map(p => {
+    const daysHtml = p.days.map((d, di) => `
+      <div class="day-section" style="margin-bottom:12px">
+        <div class="day-label" style="font-size:12px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">${d.label}</div>
+        ${d.exercises.map((ex, ei) => `
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 2fr auto;gap:6px;align-items:end;margin-bottom:6px">
+            <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">Exercise</div><input class="admin-ex-name" data-plan="${p.id}" data-day="${di}" data-ex="${ei}" value="${ex.name}" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:13px;outline:none" /></div>
+            <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">Sets</div><input class="admin-ex-sets" data-plan="${p.id}" data-day="${di}" data-ex="${ei}" value="${ex.sets}" type="number" min="1" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:13px;outline:none" /></div>
+            <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">Reps</div><input class="admin-ex-reps" data-plan="${p.id}" data-day="${di}" data-ex="${ei}" value="${ex.reps}" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:13px;outline:none" /></div>
+            <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">Rest</div><input class="admin-ex-rest" data-plan="${p.id}" data-day="${di}" data-ex="${ei}" value="${ex.rest}" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:13px;outline:none" /></div>
+            <div><div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">Notes</div><input class="admin-ex-notes" data-plan="${p.id}" data-day="${di}" data-ex="${ei}" value="${ex.notes||''}" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:13px;outline:none" /></div>
+          </div>`).join('')}
+      </div>`).join('');
+    return `<div class="card" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div>
+          <strong style="font-size:15px">${p.title}</strong>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">🎯 ${p.goal||'—'} · 📅 ${p.durationWeeks}w · ${statusBadge(p.status)}</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveAdminPlan('${p.id}')">💾 Save</button>
+      </div>
+      ${daysHtml}
+    </div>`;
+  }).join('');
+}
+
+function saveAdminPlan(planId) {
+  const p = DB.getPlanById(planId);
+  if (!p) return;
+  const updated = JSON.parse(JSON.stringify(p));
+  document.querySelectorAll(`[data-plan="${planId}"]`).forEach(input => {
+    const di = parseInt(input.dataset.day);
+    const ei = parseInt(input.dataset.ex);
+    const field = input.className.replace('admin-ex-','');
+    if (field === 'sets') updated.days[di].exercises[ei].sets = parseInt(input.value)||1;
+    else updated.days[di].exercises[ei][field] = input.value;
+  });
+  DB.updatePlan(planId, { days: updated.days });
+  const btn = document.querySelector(`button[onclick="saveAdminPlan('${planId}')"]`);
+  if (btn) { btn.textContent = '✅ Saved'; setTimeout(() => btn.textContent = '💾 Save', 1500); }
+}
+
+function openAddCoach() {
+  document.getElementById('coach-modal-title').textContent = 'Add Coach';
+  document.getElementById('c-id').value = '';
+  document.getElementById('c-name').value = '';
+  document.getElementById('c-username').value = '';
+  document.getElementById('c-pass').value = '';
+  document.getElementById('c-pass-hint').textContent = '';
+  document.getElementById('c-error').className = 'alert alert-error';
+  openModal('modal-coach');
+}
+
+function openEditCoach(id) {
+  const c = DB.getUserById(id);
+  if (!c) return;
+  document.getElementById('coach-modal-title').textContent = 'Edit Coach';
+  document.getElementById('c-id').value = c.id;
+  document.getElementById('c-name').value = c.name;
+  document.getElementById('c-username').value = c.username;
+  document.getElementById('c-pass').value = '';
+  document.getElementById('c-pass-hint').textContent = '(leave blank to keep current)';
+  document.getElementById('c-error').className = 'alert alert-error';
+  openModal('modal-coach');
+}
+
+function saveCoach() {
+  const id = document.getElementById('c-id').value;
+  const name = document.getElementById('c-name').value.trim();
+  const username = document.getElementById('c-username').value.trim().toLowerCase();
+  const pass = document.getElementById('c-pass').value;
+  const errEl = document.getElementById('c-error');
+  errEl.className = 'alert alert-error';
+
+  if (!name || !username) { errEl.textContent = 'Name and username are required.'; errEl.classList.add('show'); return; }
+  if (!id && pass.length < 6) { errEl.textContent = 'Password must be ≥6 chars.'; errEl.classList.add('show'); return; }
+
+  const conflict = DB.getUserByUsername(username);
+  if (conflict && conflict.id !== id) { errEl.textContent = 'Username taken.'; errEl.classList.add('show'); return; }
+
+  if (id) {
+    const patch = { name, username };
+    if (pass.length >= 6) patch.password = pass;
+    DB.updateUser(id, patch);
+  } else {
+    DB.addUser({ id: DB.genId(), role: 'coach', name, username, password: pass });
+  }
+  closeModal('modal-coach');
+  renderCoaches();
+  renderOverview();
+}
+
+function deleteCoach(id) {
+  if (!confirm('Delete this coach and all their clients/programs?')) return;
+  DB.deleteUser(id);
+  renderCoaches();
+  renderOverview();
+}
+
+function openEditClient(id) {
+  const c = DB.getUserById(id);
+  if (!c) return;
+  const coach = DB.getUserById(c.coachId);
+  document.getElementById('cl-id').value = c.id;
+  document.getElementById('cl-name').value = c.name;
+  document.getElementById('cl-coach').value = coach ? coach.name : '—';
+  document.getElementById('cl-expiry').value = c.membershipExpiry || '';
+  document.getElementById('cl-error').className = 'alert alert-error';
+  openModal('modal-client');
+}
+
+function saveClient() {
+  const id = document.getElementById('cl-id').value;
+  const expiry = document.getElementById('cl-expiry').value;
+  const errEl = document.getElementById('cl-error');
+  errEl.className = 'alert alert-error';
+
+  if (!expiry) { errEl.textContent = 'Expiry date required.'; errEl.classList.add('show'); return; }
+  DB.updateUser(id, { membershipExpiry: expiry });
+  closeModal('modal-client');
+  renderCoachClientsList();
+  renderOverview();
+}
+
+// ════════════════════════════════
+// SETTINGS
+// ════════════════════════════════
+function loadSettings() {
+  const s = DB.getSettings();
+  document.getElementById('s-biz-name').value = s.businessName;
+  document.getElementById('s-bg-color').value = s.bgColor;
+  document.getElementById('s-accent-color').value = s.accentColor;
+}
+
+function saveSettings() {
+  const s = {
+    businessName: document.getElementById('s-biz-name').value.trim() || 'BIX',
+    bgColor: document.getElementById('s-bg-color').value,
+    accentColor: document.getElementById('s-accent-color').value,
+  };
+  DB.saveSettings(s);
+  applyBranding();
+  const sucEl = document.getElementById('settings-success');
+  sucEl.className = 'alert alert-success';
+  sucEl.textContent = 'Settings saved!';
+  sucEl.classList.add('show');
+  setTimeout(() => sucEl.classList.remove('show'), 3000);
+}
+
+// ── Utils ──
+function statusBadge(s) {
+  const map = { active: 'badge-green', draft: 'badge-yellow', completed: 'badge-blue' };
+  return `<span class="badge ${map[s] || 'badge-blue'}">${s}</span>`;
+}
+function formatDate(iso) {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// ── Sidebar toggle (desktop collapse + mobile overlay) ──
+function toggleSidebar() {
+  if (window.innerWidth > 768) {
+    const collapsed = document.querySelector('.dashboard').classList.toggle('sidebar-collapsed');
+    localStorage.setItem('sidebar_collapsed', collapsed ? '1' : '0');
+  } else {
+    document.querySelector('.sidebar').classList.toggle('open');
+    document.getElementById('sidebar-backdrop').classList.toggle('open');
+  }
+}
+function closeSidebar() {
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebar-backdrop').classList.remove('open');
+}
+document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', closeSidebar));
+
+// ── Boot ──
+showPage('overview');
+if (window.innerWidth > 768 && localStorage.getItem('sidebar_collapsed') === '1') {
+  document.querySelector('.dashboard').classList.add('sidebar-collapsed');
+}
+</script>
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+</body>
+</html>

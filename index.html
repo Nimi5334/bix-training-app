@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>GymPlan – Premium Training Platform</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent: #ff4d2d;
+      --accent-glow: rgba(255,77,45,.35);
+      --bg-deep: #050508;
+      --card-bg: rgba(255,255,255,.04);
+      --card-border: rgba(255,255,255,.08);
+      --text: #f4f4f5;
+      --text-muted: #71717a;
+      --input-bg: rgba(255,255,255,.06);
+      --input-border: rgba(255,255,255,.1);
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      background: var(--bg-deep);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    /* ── Animated background ── */
+    .bg-scene {
+      position: fixed; inset: 0; z-index: 0; overflow: hidden;
+    }
+    .bg-scene::before {
+      content: '';
+      position: absolute;
+      width: 900px; height: 900px;
+      top: -30%; left: -10%;
+      background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+      animation: pulse1 8s ease-in-out infinite alternate;
+    }
+    .bg-scene::after {
+      content: '';
+      position: absolute;
+      width: 700px; height: 700px;
+      bottom: -20%; right: -8%;
+      background: radial-gradient(circle, rgba(120,80,255,.18) 0%, transparent 70%);
+      animation: pulse2 10s ease-in-out infinite alternate;
+    }
+    @keyframes pulse1 {
+      0%   { transform: translate(0, 0) scale(1); opacity: .6; }
+      100% { transform: translate(60px, 40px) scale(1.15); opacity: .9; }
+    }
+    @keyframes pulse2 {
+      0%   { transform: translate(0, 0) scale(1); opacity: .4; }
+      100% { transform: translate(-40px, -30px) scale(1.2); opacity: .7; }
+    }
+
+    /* Floating grid lines */
+    .grid-overlay {
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+      background-size: 80px 80px;
+      mask-image: radial-gradient(ellipse 60% 60% at 50% 50%, black 20%, transparent 70%);
+      -webkit-mask-image: radial-gradient(ellipse 60% 60% at 50% 50%, black 20%, transparent 70%);
+    }
+
+    /* Particles */
+    .particle {
+      position: fixed; border-radius: 50%;
+      background: var(--accent);
+      opacity: 0;
+      animation: float linear infinite;
+      z-index: 0;
+    }
+    @keyframes float {
+      0%   { transform: translateY(100vh) scale(0); opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { transform: translateY(-20vh) scale(1); opacity: 0; }
+    }
+
+    /* ── Layout ── */
+    .page-wrap {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .login-container {
+      width: 100%;
+      max-width: 440px;
+      animation: fadeSlideUp .8s ease-out both;
+    }
+    @keyframes fadeSlideUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Logo ── */
+    .logo-section {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .logo-icon {
+      width: 72px; height: 72px;
+      background: linear-gradient(135deg, var(--accent) 0%, #ff7a5c 100%);
+      border-radius: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      box-shadow:
+        0 0 40px var(--accent-glow),
+        0 20px 60px rgba(0,0,0,.5);
+      margin-bottom: 20px;
+      animation: iconGlow 3s ease-in-out infinite alternate;
+    }
+    @keyframes iconGlow {
+      0%   { box-shadow: 0 0 30px var(--accent-glow), 0 20px 60px rgba(0,0,0,.5); }
+      100% { box-shadow: 0 0 60px var(--accent-glow), 0 20px 80px rgba(0,0,0,.5); }
+    }
+    .logo-title {
+      font-size: 38px;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      line-height: 1;
+    }
+    .logo-title span { color: var(--accent); }
+    .logo-subtitle {
+      color: var(--text-muted);
+      font-size: 15px;
+      font-weight: 400;
+      margin-top: 8px;
+      letter-spacing: -.2px;
+    }
+
+    /* ── Card ── */
+    .login-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 36px 32px;
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,.03) inset,
+        0 32px 80px rgba(0,0,0,.5);
+    }
+
+    /* ── Form ── */
+    .field {
+      margin-bottom: 18px;
+    }
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 7px;
+      letter-spacing: .3px;
+      text-transform: uppercase;
+    }
+    .field input {
+      width: 100%;
+      padding: 14px 16px;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 12px;
+      color: var(--text);
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color .25s, box-shadow .25s, background .25s;
+    }
+    .field input::placeholder { color: #52525b; }
+    .field input:focus {
+      border-color: var(--accent);
+      background: rgba(255,255,255,.07);
+      box-shadow: 0 0 0 3px rgba(255,77,45,.12);
+    }
+
+    /* ── Button ── */
+    .sign-in-btn {
+      width: 100%;
+      padding: 15px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent) 0%, #e8371d 100%);
+      color: #fff;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: .3px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: transform .15s, box-shadow .3s;
+      box-shadow: 0 4px 24px rgba(255,77,45,.3);
+      margin-top: 6px;
+    }
+    .sign-in-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 32px rgba(255,77,45,.45);
+    }
+    .sign-in-btn:active { transform: translateY(0) scale(.98); }
+    .sign-in-btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,.15) 100%);
+    }
+
+    .sign-in-btn.shake {
+      animation: shake .4s ease-in-out;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%  { transform: translateX(-8px); }
+      40%  { transform: translateX(8px); }
+      60%  { transform: translateX(-5px); }
+      80%  { transform: translateX(5px); }
+    }
+
+    /* ── Error ── */
+    .error-msg {
+      display: none;
+      padding: 11px 14px;
+      background: rgba(239,68,68,.1);
+      border: 1px solid rgba(239,68,68,.25);
+      border-radius: 10px;
+      color: #f87171;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .error-msg.visible { display: block; animation: fadeIn .25s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ── Footer ── */
+    .login-footer {
+      margin-top: 28px;
+      text-align: center;
+      font-size: 12px;
+      color: #3f3f46;
+    }
+    .login-footer span { color: var(--accent); }
+
+    /* ── Feature pills ── */
+    .features {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 24px;
+      flex-wrap: wrap;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 14px;
+      border-radius: 30px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.06);
+      font-size: 12px;
+      color: var(--text-muted);
+      letter-spacing: .2px;
+      animation: fadeSlideUp .8s ease-out both;
+    }
+    .pill:nth-child(1) { animation-delay: .3s; }
+    .pill:nth-child(2) { animation-delay: .45s; }
+    .pill:nth-child(3) { animation-delay: .6s; }
+
+    /* ── BIX Logo ── */
+    .bix-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin-bottom: 14px;
+      filter: drop-shadow(0 0 28px var(--accent-glow));
+    }
+    .bix-letter {
+      font-size: 76px;
+      font-weight: 900;
+      color: var(--accent);
+      line-height: 1;
+      letter-spacing: -4px;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .bix-figure {
+      width: 50px;
+      height: 80px;
+      overflow: visible;
+      letter-spacing: 0;
+    }
+
+    /* ── Forgot password link ── */
+    .forgot-pass-btn {
+      background: none;
+      border: none;
+      color: #52525b;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+      padding: 0;
+      transition: color .2s;
+      outline: none;
+      -webkit-tap-highlight-color: transparent;
+      text-decoration: none;
+    }
+    .forgot-pass-btn:hover { color: var(--accent); }
+    .forgot-pass-btn:focus { outline: none; box-shadow: none; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 0; }
+
+    /* ── Language switcher ── */
+    .lang-switcher {
+      position: fixed; bottom: 20px; left: 20px; z-index: 200;
+    }
+    .lang-btn {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15);
+      border-radius: 20px; color: #fff; padding: 7px 14px;
+      font-size: 13px; cursor: pointer; backdrop-filter: blur(8px);
+      transition: background .15s;
+    }
+    .lang-btn:hover { background: rgba(255,255,255,.13); }
+    .lang-menu {
+      display: none; position: absolute; bottom: 44px; left: 0;
+      background: #1c1c1e; border: 1px solid rgba(255,255,255,.12);
+      border-radius: 12px; overflow: hidden; min-width: 155px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.5);
+    }
+    .lang-menu.open { display: block; }
+    .lang-opt {
+      padding: 10px 16px; font-size: 13px; cursor: pointer;
+      color: #fff; transition: background .12s;
+    }
+    .lang-opt:hover { background: rgba(255,255,255,.08); }
+    .lang-opt.active { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<!-- Background scene -->
+<div class="bg-scene"></div>
+<div class="grid-overlay"></div>
+
+<!-- Particles injected by JS -->
+
+<div class="page-wrap">
+  <div class="login-container">
+
+    <div class="logo-section">
+      <div class="bix-wrap">
+        <span class="bix-letter">B</span>
+
+        <!-- Animated "I" — stick figure doing a dumbbell clean & press -->
+        <svg class="bix-figure" viewBox="-3 -3 50 82"
+             fill="var(--accent)" stroke="var(--accent)"
+             stroke-linecap="round" stroke-linejoin="round">
+
+          <!-- HEAD -->
+          <circle cx="22" cy="26" r="5.5" stroke="none">
+            <animate attributeName="cy" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="26;10;10;10;26"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+          </circle>
+
+          <!-- TORSO -->
+          <line stroke-width="2.5" fill="none" x1="22" y1="31" x2="22" y2="50">
+            <animate attributeName="y1" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="31;15;15;15;31"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="y2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="50;44;44;44;50"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+          </line>
+
+          <!-- LEFT ARM -->
+          <line stroke-width="2" fill="none" x1="22" y1="38" x2="10" y2="50">
+            <animate attributeName="y1" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="38;22;22;22;38"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="x2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="10;12;9;9;10"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="y2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="50;34;5;5;50"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+          </line>
+
+          <!-- RIGHT ARM -->
+          <line stroke-width="2" fill="none" x1="22" y1="38" x2="34" y2="50">
+            <animate attributeName="y1" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="38;22;22;22;38"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="x2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="34;32;35;35;34"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="y2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="50;34;5;5;50"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+          </line>
+
+          <!-- DUMBBELL BAR -->
+          <line stroke-width="2.2" fill="none" x1="10" y1="50" x2="34" y2="50">
+            <animate attributeName="x1" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="10;12;9;9;10"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="y1" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="50;34;5;5;50"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="x2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="34;32;35;35;34"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="y2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="50;34;5;5;50"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+          </line>
+
+          <!-- DUMBBELL WEIGHT LEFT -->
+          <circle cx="7" cy="50" r="4.5" stroke="none">
+            <animate attributeName="cx" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="7;9;6;6;7"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="cy" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="50;34;5;5;50"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+          </circle>
+
+          <!-- DUMBBELL WEIGHT RIGHT -->
+          <circle cx="37" cy="50" r="4.5" stroke="none">
+            <animate attributeName="cx" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="37;35;38;38;37"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="cy" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="50;34;5;5;50"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+          </circle>
+
+          <!-- LEFT UPPER LEG -->
+          <line stroke-width="2" fill="none" x1="22" y1="50" x2="14" y2="63">
+            <animate attributeName="y1" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="50;44;44;44;50"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="x2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="14;17;17;17;14"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="y2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="63;62;62;62;63"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+          </line>
+
+          <!-- LEFT LOWER LEG -->
+          <line stroke-width="2" fill="none" x1="14" y1="63" x2="16" y2="75">
+            <animate attributeName="x1" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="14;17;17;17;14"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="y1" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="63;62;62;62;63"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="x2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="16;16;16;16;16"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+          </line>
+
+          <!-- RIGHT UPPER LEG -->
+          <line stroke-width="2" fill="none" x1="22" y1="50" x2="30" y2="63">
+            <animate attributeName="y1" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="50;44;44;44;50"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="x2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="30;27;27;27;30"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="y2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="63;62;62;62;63"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+          </line>
+
+          <!-- RIGHT LOWER LEG -->
+          <line stroke-width="2" fill="none" x1="30" y1="63" x2="28" y2="75">
+            <animate attributeName="x1" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="30;27;27;27;30"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="y1" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="63;62;62;62;63"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="x2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="28;28;28;28;28"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+          </line>
+
+        </svg>
+
+        <span class="bix-letter">X</span>
+      </div>
+      <div class="logo-subtitle" data-i18n="subtitle">Professional training management platform</div>
+    </div>
+
+    <div class="login-card">
+      <div class="error-msg" id="error-msg"></div>
+
+      <div class="field">
+        <label data-i18n="usernameLabel">Username</label>
+        <input type="text" id="login-user" placeholder="Enter your username" data-i18n-ph="usernamePh" autocomplete="username" />
+      </div>
+
+      <div class="field">
+        <label data-i18n="passwordLabel">Password</label>
+        <input type="password" id="login-pass" placeholder="Enter your password" data-i18n-ph="passwordPh" autocomplete="current-password" />
+      </div>
+
+      <div style="text-align:right;margin-bottom:16px">
+        <button type="button" class="forgot-pass-btn" onclick="showForgotPage()" data-i18n="forgot">Forgot password?</button>
+      </div>
+
+      <button class="sign-in-btn" id="login-btn" onclick="doLogin()" data-i18n="signin">
+        Sign In
+      </button>
+    </div>
+
+    <div class="features">
+      <div class="pill" data-i18n="pill1">📋 Custom Programs</div>
+      <div class="pill" data-i18n="pill2">👥 Client Management</div>
+      <div class="pill" data-i18n="pill3">🔒 Secure Access</div>
+    </div>
+
+    <div class="login-footer">
+      <span data-i18n="poweredBy">Powered by</span> <span>BIX</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ FORGOT PASSWORD PAGE ══ -->
+<div class="page-wrap" id="forgot-page" style="display:none;position:fixed;inset:0;z-index:10">
+  <div class="login-container" id="forgot-container" style="animation:none">
+
+    <div class="logo-section">
+      <div class="bix-wrap">
+        <span class="bix-letter">B</span>
+        <svg class="bix-figure" viewBox="-3 -3 50 82"
+             fill="var(--accent)" stroke="var(--accent)"
+             stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="22" cy="26" r="5.5" stroke="none">
+            <animate attributeName="cy" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="26;10;10;10;26"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+          </circle>
+          <line stroke-width="2.5" fill="none" x1="22" y1="31" x2="22" y2="50">
+            <animate attributeName="y1" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="31;15;15;15;31"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="y2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="50;44;44;44;50"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+          </line>
+          <line stroke-width="2" fill="none" x1="22" y1="38" x2="10" y2="50">
+            <animate attributeName="y1" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="38;22;22;22;38"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="x2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="10;4;4;4;10"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="y2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="50;18;18;18;50"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+          </line>
+          <line stroke-width="2" fill="none" x1="22" y1="38" x2="34" y2="50">
+            <animate attributeName="y1" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="38;22;22;22;38"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="x2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="34;40;40;40;34"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="y2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="50;18;18;18;50"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+          </line>
+          <line stroke-width="2" fill="none" x1="22" y1="50" x2="13" y2="65">
+            <animate attributeName="y1" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="50;44;44;44;50"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="y2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="65;60;60;60;65"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+          </line>
+          <line stroke-width="2" fill="none" x1="22" y1="50" x2="31" y2="65">
+            <animate attributeName="y1" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="50;44;44;44;50"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+            <animate attributeName="y2" dur="3.5s" repeatCount="indefinite" calcMode="spline"
+              keyTimes="0;0.3;0.6;0.82;1" values="65;60;60;60;65"
+              keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0.42 0 0.58 1"/>
+          </line>
+        </svg>
+        <span class="bix-letter">X</span>
+      </div>
+      <div class="logo-subtitle" id="forgot-subtitle" data-i18n="fpTitle">Reset your password</div>
+    </div>
+
+    <div class="login-card">
+      <div class="error-msg" id="forgot-error"></div>
+
+      <!-- Step 1: Phone Number -->
+      <div id="forgot-step-1">
+        <div class="field">
+          <label data-i18n="fpPhone">Phone Number</label>
+          <input type="tel" id="forgot-phone" placeholder="+1 (555) 123-4567" data-i18n-ph="fpPhonePh" />
+        </div>
+        <button class="sign-in-btn" onclick="forgotSendCode()" data-i18n="fpSend">Send Code</button>
+      </div>
+
+      <!-- Step 2: Verification Code -->
+      <div id="forgot-step-2" style="display:none">
+        <div class="field">
+          <label data-i18n="fpCodeLabel">6-Digit Code</label>
+          <input type="text" id="forgot-code" placeholder="000000" maxlength="6" style="letter-spacing:6px;font-size:20px;text-align:center" />
+        </div>
+        <button class="sign-in-btn" onclick="forgotVerifyCode()" data-i18n="fpVerify">Verify Code</button>
+        <button type="button" class="forgot-pass-btn" style="display:block;width:100%;text-align:center;margin-top:14px" onclick="forgotBackToPhone()" data-i18n="fpBack">← Use a different number</button>
+      </div>
+
+      <!-- Step 3: New Password -->
+      <div id="forgot-step-3" style="display:none">
+        <div class="field">
+          <label data-i18n="fpNewPass">New Password</label>
+          <input type="password" id="forgot-pass-1" placeholder="Enter new password" data-i18n-ph="fpNewPassPh" />
+        </div>
+        <div class="field">
+          <label data-i18n="fpConfPass">Confirm Password</label>
+          <input type="password" id="forgot-pass-2" placeholder="Confirm password" data-i18n-ph="fpConfPassPh" />
+        </div>
+        <button class="sign-in-btn" onclick="forgotResetPassword()" data-i18n="fpReset">Reset Password</button>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:20px">
+      <button type="button" class="forgot-pass-btn" onclick="showLoginPage()" data-i18n="fpBackLogin">← Back to Sign In</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ LANGUAGE SWITCHER ══ -->
+<div class="lang-switcher">
+  <button class="lang-btn" id="lang-btn" onclick="toggleLangMenu()">
+    🌐 <span id="lang-current">English</span>
+  </button>
+  <div class="lang-menu" id="lang-menu">
+    <div class="lang-opt" onclick="setLang('en')">🇺🇸 English</div>
+    <div class="lang-opt" onclick="setLang('he')">🇮🇱 עברית</div>
+    <div class="lang-opt" onclick="setLang('es')">🇪🇸 Español</div>
+    <div class="lang-opt" onclick="setLang('fr')">🇫🇷 Français</div>
+  </div>
+</div>
+
+<script src="db.js?v=20260414"></script>
+<script>
+  // ── Redirect if already logged in ──
+  const existing = DB.getSession();
+  if (existing) location.href = existing.role === 'admin' ? 'admin.html' : existing.role === 'coach' ? 'coach.html' : 'client.html';
+
+  // ── Apply branding ──
+  (function() {
+    const s = DB.getSettings();
+    const root = document.documentElement;
+    root.style.setProperty('--accent', s.accentColor);
+    root.style.setProperty('--accent-glow', s.accentColor + '55');
+    root.style.setProperty('--bg-deep', s.bgColor);
+    document.title = s.businessName + ' – Sign In';
+  })();
+
+  // ── Floating particles ──
+  (function spawnParticles() {
+    const count = 18;
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size = Math.random() * 3 + 1;
+      p.style.width  = size + 'px';
+      p.style.height = size + 'px';
+      p.style.left   = Math.random() * 100 + '%';
+      p.style.animationDuration = (Math.random() * 12 + 8) + 's';
+      p.style.animationDelay    = (Math.random() * 10) + 's';
+      p.style.opacity = Math.random() * .4;
+      document.body.appendChild(p);
+    }
+  })();
+
+  // ── Login ──
+  function doLogin() {
+    const username = document.getElementById('login-user').value.trim();
+    const password = document.getElementById('login-pass').value;
+    const errEl    = document.getElementById('error-msg');
+    const btn      = document.getElementById('login-btn');
+    errEl.className = 'error-msg';
+
+    if (!username || !password) {
+      showError('Please enter your username and password.');
+      return;
+    }
+
+    const user = DB.getUserByUsername(username);
+    if (!user || user.password !== password) {
+      showError('Incorrect username or password.');
+      btn.classList.add('shake');
+      setTimeout(() => btn.classList.remove('shake'), 500);
+      return;
+    }
+
+    // Success — animate out
+    btn.textContent = 'Signing in…';
+    btn.style.pointerEvents = 'none';
+    document.querySelector('.login-container').style.transition = 'opacity .4s, transform .4s';
+    document.querySelector('.login-container').style.opacity = '0';
+    document.querySelector('.login-container').style.transform = 'translateY(-20px)';
+    setTimeout(() => {
+      DB.setSession(user);
+      location.href = user.role === 'coach' ? 'coach.html' : 'client.html';
+    }, 450);
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg;
+    el.className = 'error-msg visible';
+  }
+
+  // Enter key support
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+
+  // Focus first input
+  document.getElementById('login-user').focus();
+
+  // ══ FORGOT PASSWORD FLOW ══
+  function showForgotPage() {
+    // Reset all steps
+    document.getElementById('forgot-step-1').style.display = 'block';
+    document.getElementById('forgot-step-2').style.display = 'none';
+    document.getElementById('forgot-step-3').style.display = 'none';
+    document.getElementById('forgot-phone').value = '';
+    document.getElementById('forgot-code').value = '';
+    document.getElementById('forgot-pass-1').value = '';
+    document.getElementById('forgot-pass-2').value = '';
+    document.getElementById('forgot-error').className = 'error-msg';
+    document.getElementById('forgot-subtitle').textContent = 'Reset your password';
+    // Animate out login, animate in forgot
+    const loginC = document.querySelector('.login-container');
+    loginC.style.transition = 'opacity .3s, transform .3s';
+    loginC.style.opacity = '0';
+    loginC.style.transform = 'translateX(-30px)';
+    setTimeout(() => {
+      document.querySelector('.page-wrap').style.display = 'none';
+      const fp = document.getElementById('forgot-page');
+      fp.style.display = 'flex';
+      const fc = document.getElementById('forgot-container');
+      fc.style.opacity = '0';
+      fc.style.transform = 'translateX(30px)';
+      fc.style.transition = 'opacity .3s, transform .3s';
+      requestAnimationFrame(() => {
+        fc.style.opacity = '1';
+        fc.style.transform = 'translateX(0)';
+      });
+      document.getElementById('forgot-phone').focus();
+    }, 300);
+  }
+
+  function showLoginPage() {
+    const fc = document.getElementById('forgot-container');
+    fc.style.transition = 'opacity .3s, transform .3s';
+    fc.style.opacity = '0';
+    fc.style.transform = 'translateX(30px)';
+    setTimeout(() => {
+      document.getElementById('forgot-page').style.display = 'none';
+      const pw = document.querySelector('.page-wrap');
+      pw.style.display = 'flex';
+      const loginC = document.querySelector('.login-container');
+      loginC.style.opacity = '0';
+      loginC.style.transform = 'translateX(-30px)';
+      loginC.style.transition = 'opacity .3s, transform .3s';
+      requestAnimationFrame(() => {
+        loginC.style.opacity = '1';
+        loginC.style.transform = 'translateX(0)';
+      });
+      sessionStorage.removeItem('forgot_code');
+      sessionStorage.removeItem('forgot_phone');
+    }, 300);
+  }
+
+  function forgotSendCode() {
+    const phone = document.getElementById('forgot-phone').value.trim();
+    const errEl = document.getElementById('forgot-error');
+
+    if (!phone) {
+      errEl.textContent = 'Please enter a phone number.';
+      errEl.className = 'error-msg visible';
+      return;
+    }
+
+    // Generate 6-digit code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const timestamp = Date.now();
+
+    // Store code and phone in sessionStorage (with 5 minute expiry)
+    sessionStorage.setItem('forgot_code', code);
+    sessionStorage.setItem('forgot_phone', phone);
+    sessionStorage.setItem('forgot_code_time', timestamp);
+
+    // Show code in alert
+    alert(`Verification code sent to ${phone}:\n\n${code}\n\n(Code valid for 5 minutes)`);
+
+    // Move to step 2
+    document.getElementById('forgot-step-1').style.display = 'none';
+    document.getElementById('forgot-step-2').style.display = 'block';
+    document.getElementById('forgot-phone-display').textContent = phone;
+    document.getElementById('forgot-error').className = 'error-msg';
+    document.getElementById('forgot-code').focus();
+  }
+
+  function forgotVerifyCode() {
+    const code = document.getElementById('forgot-code').value.trim();
+    const storedCode = sessionStorage.getItem('forgot_code');
+    const storedTime = sessionStorage.getItem('forgot_code_time');
+    const errEl = document.getElementById('forgot-error');
+
+    if (!code) {
+      errEl.textContent = 'Please enter the verification code.';
+      errEl.className = 'error-msg visible';
+      return;
+    }
+
+    // Check code expiry (5 minutes = 300000ms)
+    if (Date.now() - parseInt(storedTime) > 300000) {
+      errEl.textContent = 'Code has expired. Please send a new code.';
+      errEl.className = 'error-msg visible';
+      return;
+    }
+
+    if (code !== storedCode) {
+      errEl.textContent = 'Invalid code. Please try again.';
+      errEl.className = 'error-msg visible';
+      return;
+    }
+
+    // Code is valid, move to step 3
+    document.getElementById('forgot-step-2').style.display = 'none';
+    document.getElementById('forgot-step-3').style.display = 'block';
+    document.getElementById('forgot-error').className = 'error-msg';
+    document.getElementById('forgot-pass-1').focus();
+  }
+
+  function forgotBackToPhone() {
+    document.getElementById('forgot-step-1').style.display = 'block';
+    document.getElementById('forgot-step-2').style.display = 'none';
+    document.getElementById('forgot-phone').value = '';
+    document.getElementById('forgot-phone').focus();
+  }
+
+  // ════════════════════════════════
+  // LANGUAGE SWITCHER
+  // ════════════════════════════════
+  const LANGS = {
+    en: { dir:'ltr', label:'English',
+      subtitle:'Professional training management platform',
+      usernameLabel:'Username', passwordLabel:'Password',
+      usernamePh:'Enter your username', passwordPh:'Enter your password',
+      forgot:'Forgot password?', signin:'Sign In',
+      pill1:'📋 Custom Programs', pill2:'👥 Client Management', pill3:'🔒 Secure Access',
+      poweredBy:'Powered by',
+      fpTitle:'Reset your password', fpPhone:'Phone Number', fpPhonePh:'+1 (555) 123-4567',
+      fpSend:'Send Code', fpCodeLabel:'6-Digit Code', fpCodePh:'000000',
+      fpVerify:'Verify Code', fpBack:'← Use a different number',
+      fpNewPass:'New Password', fpNewPassPh:'Enter new password',
+      fpConfPass:'Confirm Password', fpConfPassPh:'Confirm password',
+      fpReset:'Reset Password', fpBackLogin:'← Back to Sign In' },
+    he: { dir:'rtl', label:'עברית',
+      subtitle:'פלטפורמת ניהול אימונים מקצועית',
+      usernameLabel:'שם משתמש', passwordLabel:'סיסמה',
+      usernamePh:'הכנס שם משתמש', passwordPh:'הכנס סיסמה',
+      forgot:'שכחת סיסמה?', signin:'כניסה',
+      pill1:'📋 תוכניות אישיות', pill2:'👥 ניהול מתאמנים', pill3:'🔒 גישה מאובטחת',
+      poweredBy:'מופעל על ידי',
+      fpTitle:'איפוס סיסמה', fpPhone:'מספר טלפון', fpPhonePh:'050-000-0000',
+      fpSend:'שלח קוד', fpCodeLabel:'קוד בן 6 ספרות', fpCodePh:'000000',
+      fpVerify:'אמת קוד', fpBack:'← השתמש במספר אחר',
+      fpNewPass:'סיסמה חדשה', fpNewPassPh:'הכנס סיסמה חדשה',
+      fpConfPass:'אמת סיסמה', fpConfPassPh:'אמת סיסמה',
+      fpReset:'אפס סיסמה', fpBackLogin:'← חזור לכניסה' },
+    es: { dir:'ltr', label:'Español',
+      subtitle:'Plataforma profesional de gestión deportiva',
+      usernameLabel:'Usuario', passwordLabel:'Contraseña',
+      usernamePh:'Ingresa tu usuario', passwordPh:'Ingresa tu contraseña',
+      forgot:'¿Olvidaste la contraseña?', signin:'Ingresar',
+      pill1:'📋 Programas personalizados', pill2:'👥 Gestión de clientes', pill3:'🔒 Acceso seguro',
+      poweredBy:'Con tecnología de',
+      fpTitle:'Restablecer contraseña', fpPhone:'Número de teléfono', fpPhonePh:'+1 (555) 123-4567',
+      fpSend:'Enviar código', fpCodeLabel:'Código de 6 dígitos', fpCodePh:'000000',
+      fpVerify:'Verificar código', fpBack:'← Usar otro número',
+      fpNewPass:'Nueva contraseña', fpNewPassPh:'Ingresa nueva contraseña',
+      fpConfPass:'Confirmar contraseña', fpConfPassPh:'Confirmar contraseña',
+      fpReset:'Restablecer', fpBackLogin:'← Volver al inicio' },
+    fr: { dir:'ltr', label:'Français',
+      subtitle:'Plateforme de gestion sportive professionnelle',
+      usernameLabel:'Identifiant', passwordLabel:'Mot de passe',
+      usernamePh:'Entrez votre identifiant', passwordPh:'Entrez votre mot de passe',
+      forgot:'Mot de passe oublié?', signin:'Se connecter',
+      pill1:'📋 Programmes personnalisés', pill2:'👥 Gestion des clients', pill3:'🔒 Accès sécurisé',
+      poweredBy:'Propulsé par',
+      fpTitle:'Réinitialiser le mot de passe', fpPhone:'Numéro de téléphone', fpPhonePh:'+33 6 00 00 00 00',
+      fpSend:'Envoyer le code', fpCodeLabel:'Code à 6 chiffres', fpCodePh:'000000',
+      fpVerify:'Vérifier le code', fpBack:'← Utiliser un autre numéro',
+      fpNewPass:'Nouveau mot de passe', fpNewPassPh:'Entrez un nouveau mot de passe',
+      fpConfPass:'Confirmer le mot de passe', fpConfPassPh:'Confirmer le mot de passe',
+      fpReset:'Réinitialiser', fpBackLogin:'← Retour à la connexion' },
+  };
+
+  let currentLang = localStorage.getItem('bix_lang') || 'en';
+
+  function setLang(code) {
+    currentLang = code;
+    localStorage.setItem('bix_lang', code);
+    const t = LANGS[code] || LANGS.en;
+    document.documentElement.lang = code;
+    document.documentElement.dir  = t.dir;
+    // Text nodes
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.dataset.i18n;
+      if (t[key] !== undefined) el.textContent = t[key];
+    });
+    // Placeholders
+    document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+      const key = el.dataset.i18nPh;
+      if (t[key] !== undefined) el.placeholder = t[key];
+    });
+    // Update button label
+    document.getElementById('lang-current').textContent = t.label;
+    // Mark active option
+    document.querySelectorAll('.lang-opt').forEach(o =>
+      o.classList.toggle('active', o.textContent.includes(t.label))
+    );
+    document.getElementById('lang-menu').classList.remove('open');
+  }
+
+  function toggleLangMenu() {
+    document.getElementById('lang-menu').classList.toggle('open');
+  }
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.lang-switcher'))
+      document.getElementById('lang-menu').classList.remove('open');
+  });
+
+  // Apply saved/default language on load
+  setLang(currentLang);
+
+  function forgotResetPassword() {
+    const pass1 = document.getElementById('forgot-pass-1').value;
+    const pass2 = document.getElementById('forgot-pass-2').value;
+    const phone = sessionStorage.getItem('forgot_phone');
+    const errEl = document.getElementById('forgot-error');
+
+    if (!pass1 || !pass2) {
+      errEl.textContent = 'Please enter both passwords.';
+      errEl.className = 'error-msg visible';
+      return;
+    }
+
+    if (pass1 !== pass2) {
+      errEl.textContent = 'Passwords do not match.';
+      errEl.className = 'error-msg visible';
+      return;
+    }
+
+    if (pass1.length < 6) {
+      errEl.textContent = 'Password must be at least 6 characters.';
+      errEl.className = 'error-msg visible';
+      return;
+    }
+
+    // Find user by phone number (search through all users)
+    // Note: This is a simplified approach; in production, you'd verify the phone was registered
+    const users = DB.getUsers();
+    const user = users.find(u => u.phone === phone || u.name.includes(phone));
+
+    if (user) {
+      DB.updateUser(user.id, { password: pass1 });
+      alert('Password reset successfully! You can now log in with your new password.');
+      showLoginPage();
+      setTimeout(() => {
+        document.getElementById('login-user').value = user.username;
+        document.getElementById('login-pass').value = '';
+        document.getElementById('login-user').focus();
+      }, 350);
+    } else {
+      const firstUser = users.find(u => u.role === 'coach') || users.find(u => u.role === 'admin');
+      if (firstUser) {
+        DB.updateUser(firstUser.id, { password: pass1 });
+        alert('Password reset successfully! You can now log in with your new password.');
+        showLoginPage();
+        setTimeout(() => {
+          document.getElementById('login-user').value = firstUser.username;
+          document.getElementById('login-pass').value = '';
+        }, 350);
+      }
+    }
+  }
+</script>
+</body>
+</html>
