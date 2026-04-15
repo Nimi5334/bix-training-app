@@ -9,8 +9,23 @@
   <title>Coach Dashboard</title>
   <link rel="stylesheet" href="style.css?v=20260414" />
   <style>html{background:#0f0f0f}</style>
-  <script src="db.js?v=20260414"></script>
-  <script>(function(){try{var s=JSON.parse(sessionStorage.getItem('gym_session'));if(!s||!['coach','admin'].includes(s.role))location.replace('index.html');}catch(e){location.replace('index.html');}})();</script>
+  <script type="module">
+    import { DB, auth } from './db-firebase.js';
+    // Auth guard: redirect if not logged in or not coach/admin
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) {
+        location.replace('index.html');
+        return;
+      }
+      const userData = await DB.getUserById(user.uid);
+      if (!userData || !['coach','admin'].includes(userData.role)) {
+        location.replace('index.html');
+      }
+    });
+    // Make DB available globally
+    window.DB = DB;
+    window.auth = auth;
+  </script>
   <style>
     .member-card {
       background: var(--surface);
@@ -516,7 +531,11 @@ document.getElementById('coach-name').textContent     = session.name;
 document.getElementById('coach-username').textContent = '@' + session.username;
 document.getElementById('coach-avatar').textContent   = session.name.charAt(0).toUpperCase();
 
-function logout() { DB.clearSession(); location.href = 'index.html'; }
+function logout() {
+  auth.signOut().then(() => {
+    location.href = 'index.html';
+  }).catch(e => console.error('Logout error:', e));
+}
 
 // ── Navigation ──
 const pageInfo = {

@@ -669,21 +669,37 @@
   </div>
 </div>
 
-<script src="db.js?v=20260414"></script>
-<script>
-  // ── Redirect if already logged in ──
-  const existing = DB.getSession();
-  if (existing) location.href = existing.role === 'admin' ? 'admin.html' : existing.role === 'coach' ? 'coach.html' : 'client.html';
+<script type="module">
+  import { DB, auth } from './db-firebase.js';
+  import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+  // ── Auth guard: redirect if already logged in ──
+  auth.onAuthStateChanged((user) => {
+    if (user) {
+      // Logged in — fetch user role and redirect
+      DB.getUserById(user.uid).then(userData => {
+        if (userData) {
+          const role = userData.role;
+          location.href = role === 'admin' ? 'admin.html' : role === 'coach' ? 'coach.html' : 'client.html';
+        }
+      });
+    }
+  });
 
   // ── Apply branding ──
-  (function() {
-    const s = DB.getSettings();
+  (async function() {
+    const s = await DB.getSettings();
     const root = document.documentElement;
     root.style.setProperty('--accent', s.accentColor);
     root.style.setProperty('--accent-glow', s.accentColor + '55');
     root.style.setProperty('--bg-deep', s.bgColor);
     document.title = s.businessName + ' – Sign In';
   })();
+
+  // ── Make DB available globally for other scripts ──
+  window.DB = DB;
+  window.auth = auth;
+  window.signInWithEmailAndPassword = signInWithEmailAndPassword;
 
   // ── Floating particles ──
   (function spawnParticles() {
@@ -702,8 +718,8 @@
     }
   })();
 
-  // ── Login ──
-  function doLogin() {
+  // ── Login (Firebase) ──
+  window.doLogin = async function() {
     const username = document.getElementById('login-user').value.trim();
     const password = document.getElementById('login-pass').value;
     const errEl    = document.getElementById('error-msg');
@@ -715,41 +731,66 @@
       return;
     }
 
-    const user = DB.getUserByUsername(username);
-    if (!user || user.password !== password) {
-      showError('Incorrect username or password.');
-      btn.classList.add('shake');
-      setTimeout(() => btn.classList.remove('shake'), 500);
-      return;
-    }
-
-    // Success — animate out
     btn.textContent = 'Signing in…';
     btn.style.pointerEvents = 'none';
-    document.querySelector('.login-container').style.transition = 'opacity .4s, transform .4s';
-    document.querySelector('.login-container').style.opacity = '0';
-    document.querySelector('.login-container').style.transform = 'translateY(-20px)';
-    setTimeout(() => {
-      DB.setSession(user);
-      location.href = user.role === 'coach' ? 'coach.html' : 'client.html';
-    }, 450);
-  }
 
-  function showError(msg) {
+    try {
+      // Look up user by username to get email
+      const user = await DB.getUserByUsername(username);
+      if (!user) {
+        showError('User not found.');
+        btn.textContent = 'Sign In';
+        btn.style.pointerEvents = '';
+        btn.classList.add('shake');
+        setTimeout(() => btn.classList.remove('shake'), 500);
+        return;
+      }
+
+      // Sign in with Firebase using email + password
+      const email = user.email || username + '@bix.app'; // Fallback: create email from username
+      await signInWithEmailAndPassword(auth, email, password);
+
+      // Success — animate out
+      document.querySelector('.login-container').style.transition = 'opacity .4s, transform .4s';
+      document.querySelector('.login-container').style.opacity = '0';
+      document.querySelector('.login-container').style.transform = 'translateY(-20px)';
+
+      // Redirect happens automatically via onAuthStateChanged
+      setTimeout(() => {
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          DB.getUserById(currentUser.uid).then(userData => {
+            if (userData) {
+              location.href = userData.role === 'coach' ? 'coach.html' : 'client.html';
+            }
+          });
+        }
+      }, 450);
+    } catch (error) {
+      console.error('Login error:', error.message);
+      showError('Incorrect username or password.');
+      btn.textContent = 'Sign In';
+      btn.style.pointerEvents = '';
+      btn.classList.add('shake');
+      setTimeout(() => btn.classList.remove('shake'), 500);
+    }
+  };
+
+  window.showError = function(msg) {
     const el = document.getElementById('error-msg');
     el.textContent = msg;
     el.className = 'error-msg visible';
-  }
+  };
 
   // Enter key support
   document.addEventListener('keydown', e => {
-    if (e.key === 'Enter') doLogin();
+    if (e.key === 'Enter') window.doLogin();
   });
 
   // Focus first input
   document.getElementById('login-user').focus();
 
-  // ══ FORGOT PASSWORD FLOW ══
+  // ══ FORGOT PASSWORD FLOW (kept for backward compatibility, but not fully integrated with Firebase) ══
   function showForgotPage() {
     // Reset all steps
     document.getElementById('forgot-step-1').style.display = 'block';
@@ -970,6 +1011,18 @@
   // Apply saved/default language on load
   setLang(currentLang);
 
+  // Seed Firebase on first load (one-time only)
+  DB.seedFirebase().catch(e => console.error('Seed error:', e));
+
+  window.showForgotPage = showForgotPage;
+  window.showLoginPage = showLoginPage;
+  window.forgotSendCode = forgotSendCode;
+  window.forgotVerifyCode = forgotVerifyCode;
+  window.forgotBackToPhone = forgotBackToPhone;
+  window.setLang = setLang;
+  window.toggleLangMenu = toggleLangMenu;
+  window.forgotResetPassword = forgotResetPassword;
+
   function forgotResetPassword() {
     const pass1 = document.getElementById('forgot-pass-1').value;
     const pass2 = document.getElementById('forgot-pass-2').value;
@@ -1024,3 +1077,4 @@
 </script>
 </body>
 </html>
+
