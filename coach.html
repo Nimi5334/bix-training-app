@@ -118,23 +118,13 @@
         </div>
       </div>
 
+      <!-- Coach membership status -->
+      <div id="coach-membership-status" style="margin-bottom:20px"></div>
+
       <!-- Expiring soon -->
       <div id="expiring-soon-wrap" style="display:none;margin-bottom:20px">
         <div class="section-divider">⚠️ Expiring within 14 days</div>
         <div id="expiring-soon-list"></div>
-      </div>
-
-      <div class="card">
-        <div class="section-header">
-          <h2>Recent Programs</h2>
-          <button class="btn btn-primary btn-sm" onclick="showPage('plans'); openCreatePlan()">+ New Program</button>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Program</th><th>Member</th><th>Duration</th><th>Status</th></tr></thead>
-            <tbody id="recent-plans-body"></tbody>
-          </table>
-        </div>
       </div>
     </div>
 
@@ -182,9 +172,10 @@
         </div>
       </div>
 
-      <div class="empty-state" style="margin-top:40px">
-        <div class="empty-icon">✅</div>
-        <p>Members manage their own renewals from their personal dashboard.</p>
+      <!-- Member Renewals -->
+      <div style="margin-top:28px">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px">Member Memberships</h3>
+        <div id="member-renewal-list"></div>
       </div>
     </div>
 
@@ -561,13 +552,28 @@ function renderOverview() {
   document.getElementById('stat-expired').textContent = expired.length;
   document.getElementById('stat-plans').textContent   = plans.length;
 
+  // Coach's own membership status
+  const coach = DB.getUserById(session.id);
+  const coachActive = DB.isMembershipActive(coach);
+  const expiry = coach.membershipExpiry
+    ? new Date(coach.membershipExpiry).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    : 'N/A';
+  const membershipEl = document.getElementById('coach-membership-status');
+  membershipEl.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-radius:10px;
+      background:${coachActive ? 'rgba(74,222,128,.08)' : 'rgba(239,68,68,.08)'};
+      border:1px solid ${coachActive ? 'rgba(74,222,128,.3)' : 'rgba(239,68,68,.3)'}">
+      <div>
+        <span style="font-weight:600;font-size:14px">Your Membership</span>
+        <span style="font-size:13px;color:var(--text-muted);margin-left:10px">${coachActive ? 'Expires ' + expiry : 'Expired on ' + expiry}</span>
+      </div>
+      <span style="font-size:13px;font-weight:700;color:${coachActive ? '#4ade80' : '#ef4444'}">${coachActive ? '✅ Active' : '❌ Expired'}</span>
+    </div>`;
+
   // Expiring within 14 days
-  const today    = new Date();
-  const soon14   = new Date(); soon14.setDate(today.getDate() + 14);
-  const expiring = active.filter(c => {
-    const d = new Date(c.membershipExpiry);
-    return d <= soon14;
-  });
+  const today  = new Date();
+  const soon14 = new Date(); soon14.setDate(today.getDate() + 14);
+  const expiring = active.filter(c => new Date(c.membershipExpiry) <= soon14);
   const soonWrap = document.getElementById('expiring-soon-wrap');
   const soonList = document.getElementById('expiring-soon-list');
   if (expiring.length) {
@@ -586,21 +592,6 @@ function renderOverview() {
   } else {
     soonWrap.style.display = 'none';
   }
-
-  // Recent plans
-  const tbody  = document.getElementById('recent-plans-body');
-  const recent = [...plans].sort((a,b) => new Date(b.createdAt)-new Date(a.createdAt)).slice(0,6);
-  tbody.innerHTML = recent.length
-    ? recent.map(p => {
-        const c = DB.getUserById(p.clientId);
-        return `<tr>
-          <td>${p.title}</td>
-          <td>${c ? c.name : '—'}</td>
-          <td>${p.durationWeeks}w · ${p.days.length}d/wk</td>
-          <td>${statusBadge(p.status)}</td>
-        </tr>`;
-      }).join('')
-    : '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px">No programs yet</td></tr>';
 }
 
 // ════════════════════════════════
@@ -946,8 +937,48 @@ function formatDate(iso) {
 // BILLING & PAYMENTS
 // ════════════════════════════════
 function renderBilling() {
-  // Billing page now only shows coach's own subscription
-  // Member renewals are handled by members themselves from their dashboard
+  // Coach own subscription info
+  const coach = DB.getUserById(session.id);
+  const coachActive = DB.isMembershipActive(coach);
+  const exp = coach ? coach.membershipExpiry : null;
+  const expEl = document.getElementById('coach-sub-expiry');
+  const badgeEl = document.getElementById('coach-sub-badge');
+  if (expEl) expEl.textContent = exp
+    ? (coachActive ? 'Active · Expires ' + formatDate(exp) : 'Expired on ' + formatDate(exp))
+    : 'No subscription info';
+  if (badgeEl) badgeEl.innerHTML = coachActive
+    ? '<span class="badge badge-green">✅ Active</span>'
+    : '<span class="badge badge-red">⛔ Expired</span>';
+
+  // Member renewals
+  const members = DB.getUsers().filter(u => u.role === 'client' && u.coachId === session.id);
+  const listEl = document.getElementById('member-renewal-list');
+  if (!listEl) return;
+  if (!members.length) {
+    listEl.innerHTML = '<div class="empty-state" style="margin-top:0"><div class="empty-icon">👥</div><p>No members yet. Add members from the Members page.</p></div>';
+    return;
+  }
+  listEl.innerHTML = members.map(m => {
+    const active = DB.isMembershipActive(m);
+    const expiry = m.membershipExpiry ? formatDate(m.membershipExpiry) : 'N/A';
+    const safeName = m.name.replace(/'/g, "\\'");
+    return `<div class="member-card${active ? '' : ' expired'}">
+      <div class="member-avatar" style="background:var(--primary);color:#fff">${m.name.charAt(0).toUpperCase()}</div>
+      <div class="member-info">
+        <div class="member-name">${m.name}</div>
+        <div class="member-meta">${active ? '✅ Active · Expires ' + expiry : '⛔ Expired on ' + expiry}</div>
+      </div>
+      <div class="member-actions">
+        <button class="btn btn-primary btn-sm" onclick="openPaymentForm('${m.id}','${safeName}','card')">💳 Card</button>
+        <button onclick="openPaymentForm('${m.id}','${safeName}','google')" style="background:#1a1a1a;color:#fff;border:2px solid #4285f4;border-radius:8px;padding:5px 10px;font-weight:700;font-size:12px;cursor:pointer"><span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span></button>
+        <button onclick="openPaymentForm('${m.id}','${safeName}','paypal')" style="background:#003087;color:#fff;border:none;border-radius:8px;padding:5px 10px;font-weight:700;font-size:12px;cursor:pointer"><span style="color:#009cde">Pay</span>Pal</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openCoachPayment(method) {
+  openPaymentForm(session.id, session.name, method);
 }
 
 function openPaymentForm(memberId, memberName, method) {
@@ -970,7 +1001,40 @@ function openPaymentForm(memberId, memberName, method) {
     document.getElementById('payment-google-display-amount').textContent = '99.99';
     document.getElementById('payment-google-display-duration').textContent = '1 Year';
     openModal('modal-payment-google');
+  } else if (method === 'paypal') {
+    document.getElementById('payment-paypal-target-id').value = memberId;
+    document.getElementById('paypal-duration').value = '12';
+    updatePaypalDisplay();
+    openModal('modal-payment-paypal');
   }
+}
+
+function updatePaypalDisplay() {
+  const prices = { '1': '29.99', '3': '79.99', '12': '249.99' };
+  const labels = { '1': '1 Month', '3': '3 Months', '12': '1 Year' };
+  const dur = document.getElementById('paypal-duration').value;
+  document.getElementById('paypal-plan-label').textContent = labels[dur] || dur + ' Months';
+  document.getElementById('paypal-amount-display').textContent = prices[dur] || '0.00';
+}
+
+function processPayPalPayment() {
+  const memberId = document.getElementById('payment-paypal-target-id').value;
+  const duration = parseInt(document.getElementById('paypal-duration').value);
+  const prices   = { 1: '29.99', 3: '79.99', 12: '249.99' };
+  const amount   = prices[duration] || '0.00';
+
+  alert(`✅ PayPal Payment Processed!\n\nAmount: $${amount}\n\nMembership extended by ${duration} month(s).`);
+
+  const member = DB.getUserById(memberId);
+  if (member) {
+    const base = member.membershipExpiry && new Date(member.membershipExpiry) > new Date()
+      ? new Date(member.membershipExpiry) : new Date();
+    base.setMonth(base.getMonth() + duration);
+    DB.updateUser(memberId, { membershipExpiry: base.toISOString().split('T')[0] });
+  }
+  closeModal('modal-payment-paypal');
+  renderBilling();
+  if (memberId === session.id) checkCoachMembership();
 }
 
 function processCardPayment() {
@@ -1016,14 +1080,15 @@ function processCardPayment() {
   // Update member membership expiry
   const member = DB.getUserById(memberId);
   if (member) {
-    const currentExp = new Date(member.membershipExpiry);
-    const newExp = new Date(currentExp);
-    newExp.setMonth(newExp.getMonth() + duration);
-    DB.updateUser(memberId, { membershipExpiry: newExp.toISOString().split('T')[0] });
+    const base = member.membershipExpiry && new Date(member.membershipExpiry) > new Date()
+      ? new Date(member.membershipExpiry) : new Date();
+    base.setMonth(base.getMonth() + duration);
+    DB.updateUser(memberId, { membershipExpiry: base.toISOString().split('T')[0] });
   }
 
   closeModal('modal-payment-card');
   renderBilling();
+  if (memberId === session.id) checkCoachMembership();
 }
 
 function processGooglePayment() {
@@ -1037,14 +1102,14 @@ function processGooglePayment() {
   // Update member membership expiry
   const member = DB.getUserById(memberId);
   if (member) {
-    const currentExp = new Date(member.membershipExpiry);
-    const newExp = new Date(currentExp);
-    newExp.setMonth(newExp.getMonth() + duration);
-    DB.updateUser(memberId, { membershipExpiry: newExp.toISOString().split('T')[0] });
+    const base = member.membershipExpiry && new Date(member.membershipExpiry) > new Date()
+      ? new Date(member.membershipExpiry) : new Date();
+    base.setMonth(base.getMonth() + duration);
+    DB.updateUser(memberId, { membershipExpiry: base.toISOString().split('T')[0] });
   }
-
   closeModal('modal-payment-google');
   renderBilling();
+  if (memberId === session.id) checkCoachMembership();
 }
 
 // ════════════════════════════════
