@@ -362,6 +362,26 @@ tr:hover td { background: var(--surface2); }
 .exercise-meta { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
 .exercise-notes { font-size: 12px; color: var(--text-muted); font-style: italic; }
 
+/* ── Week divider inside plan builder ── */
+.week-builder-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--primary);
+  margin: 18px 0 10px;
+}
+.week-builder-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.week-builder-divider:first-child { margin-top: 4px; }
+
 /* ── Section header ── */
 .section-header {
   display: flex;

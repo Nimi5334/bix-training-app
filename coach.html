@@ -153,22 +153,30 @@
     <div class="page" id="page-billing">
 
       <!-- Coach own subscription -->
-      <div class="card" style="margin-bottom:28px;padding:22px">
-        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <div class="card" style="padding:0;overflow:hidden">
+        <!-- Status row — always visible, click to toggle payment -->
+        <div onclick="toggleBillingPanel()" style="display:flex;justify-content:space-between;align-items:center;padding:20px 22px;cursor:pointer;user-select:none;transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
           <div>
-            <h3 style="font-size:16px;font-weight:700;margin-bottom:4px">Your BIX Subscription</h3>
-            <p id="coach-sub-expiry" style="font-size:13px;color:var(--text-muted)"></p>
+            <h3 style="font-size:16px;font-weight:700;margin-bottom:3px">Your BIX Subscription</h3>
+            <p id="coach-sub-expiry" style="font-size:13px;color:var(--text-muted);margin:0"></p>
           </div>
-          <span id="coach-sub-badge"></span>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span id="coach-sub-badge"></span>
+            <span id="billing-chevron" style="font-size:18px;color:var(--text-muted);transition:transform .2s">›</span>
+          </div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-          <button class="btn btn-primary" onclick="openCoachPayment('card')">💳 Credit Card</button>
-          <button onclick="openCoachPayment('google')" style="background:#1a1a1a;color:#fff;border:2px solid #4285f4;border-radius:10px;padding:9px 12px;font-weight:700;font-size:13px;cursor:pointer">
-            <span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span> Pay
-          </button>
-          <button onclick="openCoachPayment('paypal')" style="background:#003087;color:#fff;border:none;border-radius:10px;padding:9px 12px;font-weight:700;font-size:13px;cursor:pointer">
-            <span style="color:#009cde">Pay</span><span style="color:#fff">Pal</span>
-          </button>
+        <!-- Payment panel — hidden until clicked -->
+        <div id="billing-payment-panel" style="display:none;padding:0 22px 20px;border-top:1px solid var(--border)">
+          <p style="font-size:12px;color:var(--text-muted);margin:14px 0 12px">Choose a payment method to renew:</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+            <button class="btn btn-primary" onclick="openCoachPayment('card')">💳 Credit Card</button>
+            <button onclick="openCoachPayment('google')" style="background:#1a1a1a;color:#fff;border:2px solid #4285f4;border-radius:10px;padding:9px 12px;font-weight:700;font-size:13px;cursor:pointer">
+              <span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span> Pay
+            </button>
+            <button onclick="openCoachPayment('paypal')" style="background:#003087;color:#fff;border:none;border-radius:10px;padding:9px 12px;font-weight:700;font-size:13px;cursor:pointer">
+              <span style="color:#009cde">Pay</span><span style="color:#fff">Pal</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -301,17 +309,11 @@
       </div>
     </div>
 
-    <!-- Generate block row -->
-    <div style="margin:14px 0 4px;display:flex;align-items:center;gap:10px;background:var(--surface2);padding:12px 14px;border-radius:10px;flex-wrap:wrap">
-      <span style="font-size:13px;color:var(--text-muted);flex:1">Set weeks + days/week above, then generate the full block automatically:</span>
-      <button class="btn btn-primary btn-sm" onclick="generateBlock()">📅 Generate Training Block</button>
-    </div>
-
     <hr class="divider" />
 
     <div class="section-header">
-      <h2>Training Days &amp; Exercises</h2>
-      <button class="btn btn-secondary btn-sm" onclick="addDay()">+ Add Day</button>
+      <h2 id="days-section-title">Training Block</h2>
+      <button class="btn btn-secondary btn-sm" onclick="addDayManual()">+ Add Day</button>
     </div>
     <div id="days-container"></div>
 
@@ -748,10 +750,10 @@ function renderPlans(filterClientId) {
 }
 
 function renderPlanCard(p) {
-  const client     = DB.getUserById(p.clientId);
-  const isExpired  = client && !DB.isMembershipActive(client);
+  const client    = DB.getUserById(p.clientId);
+  const isExpired = client && !DB.isMembershipActive(client);
   const lockedNote = isExpired
-    ? `<div style="background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.25);border-radius:8px;padding:8px 14px;font-size:13px;color:#e74c3c;margin-bottom:18px">⛔ This member's membership has expired.</div>`
+    ? `<div style="background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.25);border-radius:8px;padding:8px 14px;font-size:13px;color:#e74c3c;margin-bottom:14px">⛔ This member's membership has expired.</div>`
     : '';
 
   // Group days by week
@@ -761,54 +763,63 @@ function renderPlanCard(p) {
     if (!weekMap[w]) weekMap[w] = [];
     weekMap[w].push(d);
   });
-  const weekNums  = Object.keys(weekMap).map(Number).sort((a,b) => a-b);
-  const multiWeek = weekNums.length > 1 || (weekNums[0] > 1);
+  const weekNums  = Object.keys(weekMap).map(Number).sort((a, b) => a - b);
+  const multiWeek = weekNums.length > 1;
 
   function dayHtml(d) {
+    if (!d.exercises || !d.exercises.length) return `
+      <div class="day-section">
+        <div class="day-label">${d.label}</div>
+        <div style="font-size:13px;color:var(--text-muted);padding:6px 0">No exercises added.</div>
+      </div>`;
     return `
       <div class="day-section">
         <div class="day-label">${d.label}</div>
         <table style="width:100%;border-collapse:collapse">
           <thead>
             <tr style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">
-              <th style="text-align:left;padding:4px 8px 4px 0;font-weight:600">Exercise</th>
-              <th style="text-align:center;padding:4px 8px;font-weight:600;white-space:nowrap">Sets</th>
-              <th style="text-align:center;padding:4px 8px;font-weight:600;white-space:nowrap">Reps</th>
-              <th style="text-align:center;padding:4px 8px;font-weight:600;white-space:nowrap">RPE</th>
-              <th style="text-align:left;padding:4px 0 4px 8px;font-weight:600">Notes</th>
+              <th style="text-align:left;padding:5px 8px 5px 0;font-weight:600">Exercise</th>
+              <th style="text-align:center;padding:5px 6px;font-weight:600;white-space:nowrap">Sets</th>
+              <th style="text-align:center;padding:5px 6px;font-weight:600;white-space:nowrap">Reps</th>
+              <th style="text-align:center;padding:5px 6px;font-weight:600;white-space:nowrap">RPE</th>
+              <th style="text-align:left;padding:5px 0 5px 8px;font-weight:600">Notes</th>
             </tr>
           </thead>
           <tbody>
             ${d.exercises.map(ex => `
-              <tr style="border-bottom:1px solid rgba(255,255,255,.04)">
-                <td style="padding:7px 8px 7px 0;font-weight:500;font-size:14px">${ex.name}</td>
-                <td style="text-align:center;padding:7px 8px;font-size:13px;color:var(--text-muted)">${ex.sets}</td>
-                <td style="text-align:center;padding:7px 8px;font-size:13px;color:var(--text-muted)">${ex.reps}</td>
-                <td style="text-align:center;padding:7px 8px;font-size:13px;color:var(--text-muted)">${ex.rpe || '—'}</td>
-                <td style="padding:7px 0 7px 8px;font-size:12px;color:var(--text-muted);font-style:italic">${ex.notes || ''}</td>
+              <tr style="border-bottom:1px solid rgba(255,255,255,.05)">
+                <td style="padding:8px 8px 8px 0;font-weight:500;font-size:14px">${ex.name}</td>
+                <td style="text-align:center;padding:8px 6px;font-size:13px;color:var(--text-muted)">${ex.sets}</td>
+                <td style="text-align:center;padding:8px 6px;font-size:13px;color:var(--text-muted)">${ex.reps}</td>
+                <td style="text-align:center;padding:8px 6px;font-size:13px;color:var(--text-muted)">${ex.rpe || '—'}</td>
+                <td style="padding:8px 0 8px 8px;font-size:12px;color:var(--text-muted);font-style:italic">${ex.notes || ''}</td>
               </tr>`).join('')}
           </tbody>
         </table>
       </div>`;
   }
 
-  let bodyHtml = lockedNote;
-  if (multiWeek) {
-    bodyHtml += weekNums.map(w => `
-      <div style="margin-bottom:24px">
-        <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--primary);margin-bottom:12px;display:flex;align-items:center;gap:10px">
-          📅 Week ${w}
-          <span style="flex:1;height:1px;background:var(--border);display:inline-block"></span>
-        </div>
-        ${weekMap[w].map(dayHtml).join('')}
-      </div>`).join('');
-  } else {
-    bodyHtml += (weekMap[weekNums[0]] || []).map(dayHtml).join('');
-  }
+  // Week tabs + content panels
+  const tabsHtml = multiWeek
+    ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+        ${weekNums.map((w, i) => `
+          <button id="wtab-${p.id}-${w}" onclick="selectPlanWeek('${p.id}',${w})"
+            style="padding:6px 16px;border-radius:20px;border:1px solid var(--border);
+                   background:${i === 0 ? 'var(--primary)' : 'var(--surface2)'};
+                   color:${i === 0 ? '#fff' : 'var(--text)'};
+                   font-size:13px;font-weight:600;cursor:pointer;transition:all .15s">
+            Week ${w}
+          </button>`).join('')}
+      </div>`
+    : '';
+
+  const weeksHtml = weekNums.map((w, i) => `
+    <div id="wcontent-${p.id}-${w}" style="display:${i === 0 ? 'block' : 'none'}">
+      ${(weekMap[w] || []).map(dayHtml).join('')}
+    </div>`).join('');
 
   const editBtn = `<button class="btn btn-secondary btn-sm" onclick="editPlan('${p.id}')">✏️ Edit</button>`;
   const delBtn  = `<button class="btn btn-danger btn-sm" onclick="deletePlan('${p.id}')">🗑 Delete</button>`;
-  const weekLabel = multiWeek ? `${weekNums.length} week${weekNums.length>1?'s':''} · ` : '';
 
   return `
     <div class="plan-card">
@@ -816,16 +827,29 @@ function renderPlanCard(p) {
         <div>
           <h3>${p.title}</h3>
           <div style="font-size:13px;color:var(--text-muted);margin-top:4px">
-            ${client ? '👤 ' + client.name + ' · ' : ''}🎯 ${p.goal||'—'} · 📅 ${weekLabel}${p.durationWeeks}w · ${p.daysPerWeek||p.days.length}d/wk
+            ${client ? '👤 ' + client.name + ' · ' : ''}🎯 ${p.goal || '—'} · 📅 ${p.durationWeeks}w · ${p.daysPerWeek || p.days.length}d/wk
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          ${statusBadge(p.status)}
-          ${editBtn} ${delBtn}
+          ${statusBadge(p.status)} ${editBtn} ${delBtn}
         </div>
       </div>
-      <div class="plan-card-body">${bodyHtml}</div>
+      <div class="plan-card-body">
+        ${lockedNote}${tabsHtml}${weeksHtml}
+      </div>
     </div>`;
+}
+
+function selectPlanWeek(planId, weekNum) {
+  // Switch tabs + content for this plan card
+  document.querySelectorAll(`[id^="wtab-${planId}-"]`).forEach(btn => {
+    const w = parseInt(btn.id.split('-').pop());
+    btn.style.background = w === weekNum ? 'var(--primary)' : 'var(--surface2)';
+    btn.style.color      = w === weekNum ? '#fff' : 'var(--text)';
+  });
+  document.querySelectorAll(`[id^="wcontent-${planId}-"]`).forEach(div => {
+    div.style.display = div.id === `wcontent-${planId}-${weekNum}` ? 'block' : 'none';
+  });
 }
 
 function deletePlan(id) {
@@ -841,18 +865,16 @@ function deletePlan(id) {
 let dayCount = 0;
 
 function openCreatePlan() {
-  document.getElementById('plan-modal-title').textContent = 'Create Program';
-  document.getElementById('plan-id').value           = '';
-  document.getElementById('plan-title').value        = '';
-  document.getElementById('plan-goal').value         = '';
-  document.getElementById('plan-weeks').value        = '8';
-  document.getElementById('plan-days-per-week').value = '4';
-  document.getElementById('plan-status').value       = 'active';
-  document.getElementById('plan-error').className    = 'alert alert-error';
+  document.getElementById('plan-modal-title').textContent  = 'Create Program';
+  document.getElementById('plan-id').value                  = '';
+  document.getElementById('plan-title').value               = '';
+  document.getElementById('plan-goal').value                = '';
+  document.getElementById('plan-weeks').value               = '8';
+  document.getElementById('plan-days-per-week').value       = '4';
+  document.getElementById('plan-status').value              = 'active';
+  document.getElementById('plan-error').className           = 'alert alert-error';
   populatePlanClients();
-  dayCount = 0;
-  document.getElementById('days-container').innerHTML = '';
-  addDay();
+  _buildBlock(8, 4);
   openModal('modal-plan');
 }
 
@@ -870,7 +892,13 @@ function editPlan(id) {
   populatePlanClients(p.clientId);
   dayCount = 0;
   document.getElementById('days-container').innerHTML = '';
-  p.days.forEach(d => addDay(d));
+  // Re-insert with week dividers
+  let curWeek = 0;
+  p.days.forEach(d => {
+    const w = d.week || 1;
+    if (w !== curWeek) { curWeek = w; _insertWeekDivider(w); }
+    addDay(d);
+  });
   openModal('modal-plan');
 }
 
@@ -886,13 +914,13 @@ function addDay(data) {
   const idx  = dayCount;
   const week = data?.week || 1;
   const el   = document.createElement('div');
-  el.className      = 'exercise-builder';
-  el.id             = 'day-' + idx;
-  el.dataset.week   = week;
+  el.className    = 'exercise-builder';
+  el.id           = 'day-' + idx;
+  el.dataset.week = week;
   el.innerHTML = `
     <div class="exercise-builder-header">
       <input type="text" value="${data ? data.label : 'Day ' + idx}"
-        id="day-label-${idx}" placeholder="e.g. Monday – Push"
+        id="day-label-${idx}" placeholder="e.g. Push · Upper Body"
         style="background:none;border:none;color:var(--text);font-weight:600;font-size:13px;width:60%;outline:none" />
       <div style="display:flex;gap:6px">
         <button class="btn btn-secondary btn-sm" onclick="addExercise(${idx})">+ Exercise</button>
@@ -901,24 +929,35 @@ function addDay(data) {
     </div>
     <div class="exercise-builder-body"><div id="exercises-${idx}"></div></div>`;
   document.getElementById('days-container').appendChild(el);
-  if (data?.exercises) data.exercises.forEach(ex => addExercise(idx, ex));
+  if (data?.exercises?.length) data.exercises.forEach(ex => addExercise(idx, ex));
   else addExercise(idx);
 }
 
-function generateBlock() {
-  const weeks       = parseInt(document.getElementById('plan-weeks').value) || 1;
-  const daysPerWeek = parseInt(document.getElementById('plan-days-per-week').value) || 4;
-  if (weeks < 1 || weeks > 52)       { alert('Duration must be between 1 and 52 weeks.'); return; }
-  if (daysPerWeek < 1 || daysPerWeek > 7) { alert('Days per week must be 1–7.'); return; }
-  const total = weeks * daysPerWeek;
-  if (!confirm(`Generate a ${weeks}-week block with ${daysPerWeek} training day${daysPerWeek > 1 ? 's' : ''} per week (${total} days total)?\n\nThis will replace any days already added.`)) return;
+function _insertWeekDivider(w) {
+  const div = document.createElement('div');
+  div.className = 'week-builder-divider';
+  div.innerHTML = `<span>📅 Week ${w}</span>`;
+  document.getElementById('days-container').appendChild(div);
+}
+
+function _buildBlock(weeks, daysPerWeek) {
   dayCount = 0;
   document.getElementById('days-container').innerHTML = '';
   for (let w = 1; w <= weeks; w++) {
+    _insertWeekDivider(w);
     for (let d = 1; d <= daysPerWeek; d++) {
-      addDay({ label: `Week ${w} · Day ${d}`, exercises: [], week: w });
+      addDay({ label: `Day ${d}`, exercises: [], week: w });
     }
   }
+}
+
+// Manual "add day" — appends to the last week in the builder
+function addDayManual() {
+  const allDays = document.querySelectorAll('#days-container .exercise-builder');
+  const lastWeek = allDays.length > 0
+    ? parseInt(allDays[allDays.length - 1].dataset.week) || 1
+    : 1;
+  addDay({ label: 'Day', exercises: [], week: lastWeek });
 }
 
 let exCount = 0;
@@ -1003,19 +1042,30 @@ function formatDate(iso) {
 // BILLING & PAYMENTS
 // ════════════════════════════════
 function renderBilling() {
-  // Coach own subscription info
-  const coach = DB.getUserById(session.id);
-  const coachActive = DB.isMembershipActive(coach);
-  const exp = coach ? coach.membershipExpiry : null;
-  const expEl = document.getElementById('coach-sub-expiry');
-  const badgeEl = document.getElementById('coach-sub-badge');
+  const coach     = DB.getUserById(session.id);
+  const active    = DB.isMembershipActive(coach);
+  const exp       = coach ? coach.membershipExpiry : null;
+  const expEl     = document.getElementById('coach-sub-expiry');
+  const badgeEl   = document.getElementById('coach-sub-badge');
   if (expEl) expEl.textContent = exp
-    ? (coachActive ? 'Active · Expires ' + formatDate(exp) : 'Expired on ' + formatDate(exp))
+    ? (active ? 'Active · Expires ' + formatDate(exp) : 'Expired on ' + formatDate(exp))
     : 'No subscription info';
-  if (badgeEl) badgeEl.innerHTML = coachActive
+  if (badgeEl) badgeEl.innerHTML = active
     ? '<span class="badge badge-green">✅ Active</span>'
     : '<span class="badge badge-red">⛔ Expired</span>';
+  // Auto-open payment panel if expired
+  if (!active) {
+    document.getElementById('billing-payment-panel').style.display = 'block';
+    document.getElementById('billing-chevron').style.transform = 'rotate(90deg)';
+  }
+}
 
+function toggleBillingPanel() {
+  const panel   = document.getElementById('billing-payment-panel');
+  const chevron = document.getElementById('billing-chevron');
+  const open    = panel.style.display !== 'none';
+  panel.style.display          = open ? 'none' : 'block';
+  chevron.style.transform      = open ? ''     : 'rotate(90deg)';
 }
 
 function openCoachPayment(method) {
