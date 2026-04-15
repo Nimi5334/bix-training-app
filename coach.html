@@ -24,6 +24,8 @@
       }
       // Set session to Firestore user data so session.id matches Firestore doc IDs
       window.session = userData;
+      // Signal main script that session is ready
+      document.dispatchEvent(new CustomEvent('sessionReady'));
     });
     // Make DB available globally
     window.DB = DB;
@@ -497,12 +499,13 @@
 </div>
 
 <script>
-const session = DB.getSession();
+// session is set by the module auth guard via sessionReady event
+let session = {};
 
 // ── Branding ──
-function applyBranding() {
-  const s     = DB.getSettings();
-  const coach = DB.getUserById(session.id);
+async function applyBranding() {
+  const s     = await DB.getSettings();
+  const coach = await DB.getUserById(session.id);
   const bgColor     = (coach && coach.hasCustomColors && coach.bgColor)     ? coach.bgColor     : (s.bgColor     || '#0f0f0f');
   const accentColor = (coach && coach.hasCustomColors && coach.accentColor) ? coach.accentColor : (s.accentColor || '#e8442a');
   document.documentElement.style.setProperty('--bg',           bgColor);
@@ -512,11 +515,10 @@ function applyBranding() {
   if (bizEl) bizEl.innerHTML = `<span style="color:var(--primary)">${s.businessName}</span>`;
   document.title = s.businessName + ' – Coach';
 }
-applyBranding();
 
 // ── Coach membership guard ──
-function checkCoachMembership() {
-  const coach  = DB.getUserById(session.id);
+async function checkCoachMembership() {
+  const coach  = await DB.getUserById(session.id);
   const active = DB.isMembershipActive(coach);
   const overlay = document.getElementById('coach-expired-overlay');
   overlay.style.display = active ? 'none' : 'flex';
@@ -527,12 +529,6 @@ function checkCoachMembership() {
   });
   if (!active) showPage('billing');
 }
-checkCoachMembership();
-
-// ── Init header ──
-document.getElementById('coach-name').textContent     = session.name;
-document.getElementById('coach-username').textContent = '@' + session.username;
-document.getElementById('coach-avatar').textContent   = session.name.charAt(0).toUpperCase();
 
 function logout() {
   auth.signOut().then(() => {
@@ -541,13 +537,16 @@ function logout() {
 }
 
 // ── Navigation ──
-const pageInfo = {
+let pageInfo = {};
+function initPageInfo() {
+  pageInfo = {
   overview: ['Overview',  'Welcome back, ' + session.name.split(' ')[0]],
   members:  ['Members',   'Manage active & expired memberships'],
   billing:  ['Billing',   'Renew member memberships'],
   plans:    ['Programs',  'Create and assign training programs'],
   settings: ['Settings',  'Customize your dashboard appearance'],
-};
+  };
+}
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === name));
@@ -571,18 +570,18 @@ document.querySelectorAll('.modal-overlay').forEach(o =>
 // ════════════════════════════════
 // OVERVIEW
 // ════════════════════════════════
-function renderOverview() {
-  const clients = DB.getClientsByCoach(session.id);
+async function renderOverview() {
+  const clients = await DB.getClientsByCoach(session.id);
   const active  = clients.filter(c => DB.isMembershipActive(c));
   const expired = clients.filter(c => !DB.isMembershipActive(c));
-  const plans   = DB.getPlansByCoach(session.id);
+  const plans   = await DB.getPlansByCoach(session.id);
 
   document.getElementById('stat-active').textContent  = active.length;
   document.getElementById('stat-expired').textContent = expired.length;
   document.getElementById('stat-plans').textContent   = plans.length;
 
   // Coach's own membership status
-  const coach = DB.getUserById(session.id);
+  const coach = await DB.getUserById(session.id);
   const coachActive = DB.isMembershipActive(coach);
   const expiry = coach.membershipExpiry
     ? new Date(coach.membershipExpiry).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
@@ -626,26 +625,32 @@ function renderOverview() {
 // ════════════════════════════════
 // MEMBERS
 // ════════════════════════════════
-function renderMembers() {
-  const clients = DB.getClientsByCoach(session.id);
+async function renderMembers() {
+  const clients = await DB.getClientsByCoach(session.id);
   const active  = clients.filter(c => DB.isMembershipActive(c));
   const expired = clients.filter(c => !DB.isMembershipActive(c));
 
   document.getElementById('active-count').textContent  = `(${active.length})`;
   document.getElementById('expired-count').textContent = `(${expired.length})`;
 
-  renderMemberList('active-members-list',  'active-empty',  active,  true);
-  renderMemberList('expired-members-list', 'expired-empty', expired, false);
+  await renderMemberList('active-members-list',  'active-empty',  active,  true);
+  await renderMemberList('expired-members-list', 'expired-empty', expired, false);
 }
 
-function renderMemberList(listId, emptyId, clients, isActive) {
+async function renderMemberList(listId, emptyId, clients, isActive) {
   const container = document.getElementById(listId);
   const empty     = document.getElementById(emptyId);
   empty.style.display     = clients.length ? 'none' : 'block';
   container.style.display = clients.length ? '' : 'none';
 
+  const planCounts = {};
+  for (const c of clients) {
+    const plans = await DB.getPlansByClient(c.id);
+    planCounts[c.id] = plans.length;
+  }
+
   container.innerHTML = clients.map(c => {
-    const planCount = DB.getPlansByClient(c.id).length;
+    const planCount = planCounts[c.id];
     const initials  = c.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
     const avatarBg  = isActive ? 'var(--primary)' : '#555';
     const expLabel  = c.membershipExpiry
@@ -692,8 +697,8 @@ function openAddMember() {
 }
 
 // ── Edit member ──
-function openEditMember(id) {
-  const c = DB.getUserById(id);
+async function openEditMember(id) {
+  const c = await DB.getUserById(id);
   if (!c) return;
   document.getElementById('member-modal-title').textContent = 'Edit Member';
   document.getElementById('m-id').value       = c.id;
@@ -706,7 +711,7 @@ function openEditMember(id) {
   openModal('modal-member');
 }
 
-function saveMember() {
+async function saveMember() {
   const id       = document.getElementById('m-id').value;
   const name     = document.getElementById('m-name').value.trim();
   const username = document.getElementById('m-username').value.trim().toLowerCase();
@@ -719,25 +724,25 @@ function saveMember() {
   if (!id && pass.length < 6) { errEl.textContent = 'Password must be at least 6 chars.'; errEl.classList.add('show'); return; }
   if (!expiry)                 { errEl.textContent = 'Please set a membership expiry date.'; errEl.classList.add('show'); return; }
 
-  // Check username unique
-  const existing = DB.getUserByUsername(username);
+  // Check username unique (await since DB is now async)
+  const existing = await DB.getUserByUsername(username);
   if (existing && existing.id !== id) { errEl.textContent = 'That username is already taken.'; errEl.classList.add('show'); return; }
 
+  const email = username + '@bix.app';
   if (id) {
-    const patch = { name, username, membershipExpiry: expiry };
-    if (pass.length >= 6) patch.password = pass;
-    DB.updateUser(id, patch);
+    const patch = { name, username, email, membershipExpiry: expiry };
+    await DB.updateUser(id, patch);
   } else {
-    DB.addUser({ id: DB.genId(), role: 'client', name, username, password: pass, coachId: session.id, membershipExpiry: expiry });
+    await DB.addUser({ id: DB.genId(), role: 'client', name, username, email, coachId: session.id, membershipExpiry: expiry });
   }
   closeModal('modal-member');
   renderMembers();
   renderOverview();
 }
 
-function deleteMember(id) {
+async function deleteMember(id) {
   if (!confirm('Remove this member and all their programs?')) return;
-  DB.deleteUser(id);
+  await DB.deleteUser(id);
   renderMembers();
   renderOverview();
 }
@@ -751,15 +756,15 @@ function viewMemberPrograms(clientId) {
 // ════════════════════════════════
 // PROGRAMS
 // ════════════════════════════════
-function renderPlans(filterClientId) {
+async function renderPlans(filterClientId) {
   // Populate filter dropdown
   const sel     = document.getElementById('filter-client');
-  const clients = DB.getClientsByCoach(session.id);
+  const clients = await DB.getClientsByCoach(session.id);
   sel.innerHTML = '<option value="">All Members</option>' +
     clients.map(c => `<option value="${c.id}" ${(filterClientId || sel.value) === c.id ? 'selected':''} >${c.name}${DB.isMembershipActive(c)?'':' (expired)'}</option>`).join('');
 
   const chosen = filterClientId || sel.value;
-  let plans = DB.getPlansByCoach(session.id);
+  let plans = await DB.getPlansByCoach(session.id);
   if (chosen) plans = plans.filter(p => p.clientId === chosen);
 
   const container = document.getElementById('plans-list');
@@ -768,11 +773,12 @@ function renderPlans(filterClientId) {
   empty.style.display = 'none';
 
   plans = [...plans].sort((a,b) => new Date(b.createdAt)-new Date(a.createdAt));
-  container.innerHTML = plans.map(p => renderPlanCard(p)).join('');
+  const cards = await Promise.all(plans.map(p => renderPlanCard(p)));
+  container.innerHTML = cards.join('');
 }
 
-function renderPlanCard(p) {
-  const client    = DB.getUserById(p.clientId);
+async function renderPlanCard(p) {
+  const client    = await DB.getUserById(p.clientId);
   const isExpired = client && !DB.isMembershipActive(client);
   const lockedNote = isExpired
     ? `<div style="background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.25);border-radius:8px;padding:8px 14px;font-size:13px;color:#e74c3c;margin-bottom:14px">⛔ This member's membership has expired.</div>`
@@ -924,8 +930,8 @@ function editPlan(id) {
   openModal('modal-plan');
 }
 
-function populatePlanClients(selectedId) {
-  const clients = DB.getClientsByCoach(session.id);
+async function populatePlanClients(selectedId) {
+  const clients = await DB.getClientsByCoach(session.id);
   document.getElementById('plan-client').innerHTML = clients.length
     ? clients.map(c => `<option value="${c.id}" ${c.id===selectedId?'selected':''}>${c.name}${DB.isMembershipActive(c)?'':' (expired)'}</option>`).join('')
     : '<option value="">— No members —</option>';
@@ -1063,8 +1069,8 @@ function formatDate(iso) {
 // ════════════════════════════════
 // BILLING & PAYMENTS
 // ════════════════════════════════
-function renderBilling() {
-  const coach     = DB.getUserById(session.id);
+async function renderBilling() {
+  const coach     = await DB.getUserById(session.id);
   const active    = DB.isMembershipActive(coach);
   const exp       = coach ? coach.membershipExpiry : null;
   const expEl     = document.getElementById('coach-sub-expiry');
@@ -1130,7 +1136,7 @@ function updatePaypalDisplay() {
   document.getElementById('paypal-amount-display').textContent = prices[dur] || '0.00';
 }
 
-function processPayPalPayment() {
+async function processPayPalPayment() {
   const memberId = document.getElementById('payment-paypal-target-id').value;
   const duration = parseInt(document.getElementById('paypal-duration').value);
   const prices   = { 1: '29.99', 3: '79.99', 12: '249.99' };
@@ -1138,19 +1144,19 @@ function processPayPalPayment() {
 
   alert(`✅ PayPal Payment Processed!\n\nAmount: $${amount}\n\nMembership extended by ${duration} month(s).`);
 
-  const member = DB.getUserById(memberId);
+  const member = await DB.getUserById(memberId);
   if (member) {
     const base = member.membershipExpiry && new Date(member.membershipExpiry) > new Date()
       ? new Date(member.membershipExpiry) : new Date();
     base.setMonth(base.getMonth() + duration);
-    DB.updateUser(memberId, { membershipExpiry: base.toISOString().split('T')[0] });
+    await DB.updateUser(memberId, { membershipExpiry: base.toISOString().split('T')[0] });
   }
   closeModal('modal-payment-paypal');
   renderBilling();
   if (memberId === session.id) checkCoachMembership();
 }
 
-function processCardPayment() {
+async function processCardPayment() {
   const memberId = document.getElementById('payment-member-id').value;
   const cardNum = document.getElementById('payment-card-number').value.replace(/\s/g, '');
   const expiry = document.getElementById('payment-expiry').value;
@@ -1191,12 +1197,12 @@ function processCardPayment() {
   alert(`✅ Payment Processed!\n\nCard: ****${cardNum.slice(-4)}\nAmount: $${amount}\n\nMembership extended by ${duration} month(s).`);
 
   // Update member membership expiry
-  const member = DB.getUserById(memberId);
+  const member = await DB.getUserById(memberId);
   if (member) {
     const base = member.membershipExpiry && new Date(member.membershipExpiry) > new Date()
       ? new Date(member.membershipExpiry) : new Date();
     base.setMonth(base.getMonth() + duration);
-    DB.updateUser(memberId, { membershipExpiry: base.toISOString().split('T')[0] });
+    await DB.updateUser(memberId, { membershipExpiry: base.toISOString().split('T')[0] });
   }
 
   closeModal('modal-payment-card');
@@ -1204,7 +1210,7 @@ function processCardPayment() {
   if (memberId === session.id) checkCoachMembership();
 }
 
-function processGooglePayment() {
+async function processGooglePayment() {
   const memberId = document.getElementById('payment-google-member-id').value;
   const amount = document.getElementById('payment-google-amount').value;
   const duration = parseInt(document.getElementById('payment-google-duration').value);
@@ -1213,12 +1219,12 @@ function processGooglePayment() {
   alert(`✅ Google Pay Payment Processed!\n\nAmount: $${amount}\n\nMembership extended by ${duration} month(s).`);
 
   // Update member membership expiry
-  const member = DB.getUserById(memberId);
+  const member = await DB.getUserById(memberId);
   if (member) {
     const base = member.membershipExpiry && new Date(member.membershipExpiry) > new Date()
       ? new Date(member.membershipExpiry) : new Date();
     base.setMonth(base.getMonth() + duration);
-    DB.updateUser(memberId, { membershipExpiry: base.toISOString().split('T')[0] });
+    await DB.updateUser(memberId, { membershipExpiry: base.toISOString().split('T')[0] });
   }
   closeModal('modal-payment-google');
   renderBilling();
@@ -1228,9 +1234,9 @@ function processGooglePayment() {
 // ════════════════════════════════
 // SETTINGS
 // ════════════════════════════════
-function loadCoachSettings() {
-  const coach = DB.getUserById(session.id);
-  const s     = DB.getSettings();
+async function loadCoachSettings() {
+  const coach = await DB.getUserById(session.id);
+  const s     = await DB.getSettings();
   const bgColor     = (coach && coach.hasCustomColors && coach.bgColor)     ? coach.bgColor     : (s.bgColor     || '#0f0f0f');
   const accentColor = (coach && coach.hasCustomColors && coach.accentColor) ? coach.accentColor : (s.accentColor || '#e8442a');
   document.getElementById('coach-bg-color').value     = bgColor;
@@ -1310,7 +1316,7 @@ function toggleFiveWeekView() {
   }
 }
 
-function renderFiveWeekView() {
+async function renderFiveWeekView() {
   const startDateStr = document.getElementById('five-week-start').value;
   if (!startDateStr) return;
 
@@ -1321,11 +1327,11 @@ function renderFiveWeekView() {
   document.getElementById('five-week-info').textContent =
     `Programs from ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()} (Trainers will see this 5-week preview)`;
 
-  const allPlans = DB.getPlansByCoach(session.id);
+  const allPlans = await DB.getPlansByCoach(session.id);
   const plansList = document.getElementById('plans-list');
 
-  plansList.innerHTML = allPlans.length ? allPlans.map(p => {
-    const client = DB.getUserById(p.clientId);
+  const cards = await Promise.all(allPlans.map(async p => {
+    const client = await DB.getUserById(p.clientId);
     const createdDate = new Date(p.createdAt);
     const withinRange = createdDate >= startDate && createdDate <= endDate;
 
@@ -1352,14 +1358,28 @@ function renderFiveWeekView() {
         `).join('')}
       </div>
     </div>`;
-  }).join('') : '<div class="empty-state"><div class="empty-icon">📋</div><p>No programs in this 5-week window.</p></div>';
+  }));
+  plansList.innerHTML = allPlans.length ? cards.join('') : '<div class="empty-state"><div class="empty-icon">📋</div><p>No programs in this 5-week window.</p></div>';
 }
 
-// ── Boot ──
-showPage('overview');
-if (window.innerWidth > 768 && localStorage.getItem('sidebar_collapsed') === '1') {
-  document.querySelector('.dashboard').classList.add('sidebar-collapsed');
-}
+// ── Boot: wait for session from module auth guard ──
+document.addEventListener('sessionReady', async function() {
+  session = window.session;
+  initPageInfo();
+
+  // Header
+  document.getElementById('coach-name').textContent     = session.name;
+  document.getElementById('coach-username').textContent = '@' + session.username;
+  document.getElementById('coach-avatar').textContent   = session.name.charAt(0).toUpperCase();
+
+  await applyBranding();
+  await checkCoachMembership();
+  showPage('overview');
+
+  if (window.innerWidth > 768 && localStorage.getItem('sidebar_collapsed') === '1') {
+    document.querySelector('.dashboard').classList.add('sidebar-collapsed');
+  }
+});
 </script>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
 </body>
