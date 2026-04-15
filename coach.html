@@ -17,10 +17,13 @@
         location.replace('index.html');
         return;
       }
-      const userData = await DB.getUserById(user.uid);
+      const userData = await DB.getUserByEmail(user.email);
       if (!userData || !['coach','admin'].includes(userData.role)) {
         location.replace('index.html');
+        return;
       }
+      // Set session to Firestore user data so session.id matches Firestore doc IDs
+      window.session = userData;
     });
     // Make DB available globally
     window.DB = DB;

@@ -57,11 +57,20 @@ const DB = {
 
   async getUserByUsername(username) {
     try {
-      // Firestore doesn't have direct string search, so we fetch all and filter
       const users = await DB.getUsers();
       return users.find(u => u.username?.toLowerCase() === username.toLowerCase()) || null;
     } catch (e) {
       console.error('getUserByUsername error:', e);
+      return null;
+    }
+  },
+
+  async getUserByEmail(email) {
+    try {
+      const users = await DB.getUsers();
+      return users.find(u => u.email?.toLowerCase() === email.toLowerCase()) || null;
+    } catch (e) {
+      console.error('getUserByEmail error:', e);
       return null;
     }
   },

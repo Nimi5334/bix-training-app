@@ -676,8 +676,8 @@
   // ── Auth guard: redirect if already logged in ──
   auth.onAuthStateChanged((user) => {
     if (user) {
-      // Logged in — fetch user role and redirect
-      DB.getUserById(user.uid).then(userData => {
+      // Logged in — fetch user role by email and redirect
+      DB.getUserByEmail(user.email).then(userData => {
         if (userData) {
           const role = userData.role;
           location.href = role === 'admin' ? 'admin.html' : role === 'coach' ? 'coach.html' : 'client.html';
@@ -735,37 +735,34 @@
     btn.style.pointerEvents = 'none';
 
     try {
-      // Look up user by username to get email
-      const user = await DB.getUserByUsername(username);
-      if (!user) {
-        showError('User not found.');
+      // Construct email directly from username (no pre-auth Firestore lookup needed)
+      const email = username.includes('@') ? username : username + '@bix.app';
+
+      // Sign in with Firebase Auth
+      await signInWithEmailAndPassword(auth, email, password);
+
+      // Auth succeeded — seed Firestore if first time, then get user profile
+      await DB.seedFirebase();
+      const userData = await DB.getUserByEmail(email);
+
+      if (!userData) {
+        showError('Account not set up. Contact admin.');
+        await auth.signOut();
         btn.textContent = 'Sign In';
         btn.style.pointerEvents = '';
-        btn.classList.add('shake');
-        setTimeout(() => btn.classList.remove('shake'), 500);
         return;
       }
 
-      // Sign in with Firebase using email + password
-      const email = user.email || username + '@bix.app'; // Fallback: create email from username
-      await signInWithEmailAndPassword(auth, email, password);
-
-      // Success — animate out
+      // Success — animate out and redirect
       document.querySelector('.login-container').style.transition = 'opacity .4s, transform .4s';
       document.querySelector('.login-container').style.opacity = '0';
       document.querySelector('.login-container').style.transform = 'translateY(-20px)';
 
-      // Redirect happens automatically via onAuthStateChanged
       setTimeout(() => {
-        const currentUser = auth.currentUser;
-        if (currentUser) {
-          DB.getUserById(currentUser.uid).then(userData => {
-            if (userData) {
-              location.href = userData.role === 'coach' ? 'coach.html' : 'client.html';
-            }
-          });
-        }
+        const role = userData.role;
+        location.href = role === 'admin' ? 'admin.html' : role === 'coach' ? 'coach.html' : 'client.html';
       }, 450);
+
     } catch (error) {
       console.error('Login error:', error.message);
       showError('Incorrect username or password.');
