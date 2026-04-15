@@ -325,7 +325,7 @@ const DB = {
       },
     ];
 
-    const settings = {
+    const seedData = {
       businessName: 'GymPlan',
       bgColor: '#0f0f0f',
       accentColor: '#e8442a',
@@ -342,7 +342,7 @@ const DB = {
         await setDoc(doc(db, 'plans', p.id), p);
       }
       // Add settings
-      await setDoc(doc(db, 'settings', 'default'), settings);
+      await setDoc(doc(db, 'settings', 'default'), seedData);
       console.log('Firestore seeding complete!');
     } catch (e) {
       console.error('Seed error:', e);
