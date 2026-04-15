@@ -334,15 +334,19 @@ tr:hover td { background: var(--surface2); }
 .plan-card-header h3 { font-size: 16px; font-weight: 700; }
 .plan-card-body { padding: 20px; }
 
-.day-section { margin-bottom: 20px; }
+.day-section { margin-bottom: 18px; }
 .day-section:last-child { margin-bottom: 0; }
 .day-label {
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: var(--primary);
-  margin-bottom: 10px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  background: var(--surface2);
+  border-radius: 6px;
+  border-left: 3px solid var(--primary);
 }
 .exercise-row {
   display: flex;

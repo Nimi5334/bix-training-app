@@ -172,11 +172,6 @@
         </div>
       </div>
 
-      <!-- Member Renewals -->
-      <div style="margin-top:28px">
-        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px">Member Memberships</h3>
-        <div id="member-renewal-list"></div>
-      </div>
     </div>
 
     <!-- ══ SETTINGS ══ -->
@@ -300,6 +295,16 @@
           <option value="completed">Completed</option>
         </select>
       </div>
+      <div class="form-group" style="margin:0">
+        <label>Training Days / Week</label>
+        <input type="number" id="plan-days-per-week" value="4" min="1" max="7" />
+      </div>
+    </div>
+
+    <!-- Generate block row -->
+    <div style="margin:14px 0 4px;display:flex;align-items:center;gap:10px;background:var(--surface2);padding:12px 14px;border-radius:10px;flex-wrap:wrap">
+      <span style="font-size:13px;color:var(--text-muted);flex:1">Set weeks + days/week above, then generate the full block automatically:</span>
+      <button class="btn btn-primary btn-sm" onclick="generateBlock()">📅 Generate Training Block</button>
     </div>
 
     <hr class="divider" />
@@ -746,24 +751,64 @@ function renderPlanCard(p) {
   const client     = DB.getUserById(p.clientId);
   const isExpired  = client && !DB.isMembershipActive(client);
   const lockedNote = isExpired
-    ? `<div style="background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.25);border-radius:8px;padding:8px 14px;font-size:13px;color:#e74c3c;margin-bottom:14px">⛔ This member's membership has expired. Renew it to activate editing.</div>`
+    ? `<div style="background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.25);border-radius:8px;padding:8px 14px;font-size:13px;color:#e74c3c;margin-bottom:18px">⛔ This member's membership has expired.</div>`
     : '';
 
-  const daysHtml = p.days.map(d => `
-    <div class="day-section">
-      <div class="day-label">${d.label}</div>
-      ${d.exercises.map(ex => `
-        <div class="exercise-row">
-          <div>
-            <div class="exercise-name">${ex.name}</div>
-            ${ex.notes ? `<div class="exercise-notes">${ex.notes}</div>` : ''}
-          </div>
-          <div class="exercise-meta">${ex.sets} × ${ex.reps} · RPE ${ex.rpe || 'N/A'}</div>
-        </div>`).join('')}
-    </div>`).join('');
+  // Group days by week
+  const weekMap = {};
+  (p.days || []).forEach(d => {
+    const w = d.week || 1;
+    if (!weekMap[w]) weekMap[w] = [];
+    weekMap[w].push(d);
+  });
+  const weekNums  = Object.keys(weekMap).map(Number).sort((a,b) => a-b);
+  const multiWeek = weekNums.length > 1 || (weekNums[0] > 1);
+
+  function dayHtml(d) {
+    return `
+      <div class="day-section">
+        <div class="day-label">${d.label}</div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">
+              <th style="text-align:left;padding:4px 8px 4px 0;font-weight:600">Exercise</th>
+              <th style="text-align:center;padding:4px 8px;font-weight:600;white-space:nowrap">Sets</th>
+              <th style="text-align:center;padding:4px 8px;font-weight:600;white-space:nowrap">Reps</th>
+              <th style="text-align:center;padding:4px 8px;font-weight:600;white-space:nowrap">RPE</th>
+              <th style="text-align:left;padding:4px 0 4px 8px;font-weight:600">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${d.exercises.map(ex => `
+              <tr style="border-bottom:1px solid rgba(255,255,255,.04)">
+                <td style="padding:7px 8px 7px 0;font-weight:500;font-size:14px">${ex.name}</td>
+                <td style="text-align:center;padding:7px 8px;font-size:13px;color:var(--text-muted)">${ex.sets}</td>
+                <td style="text-align:center;padding:7px 8px;font-size:13px;color:var(--text-muted)">${ex.reps}</td>
+                <td style="text-align:center;padding:7px 8px;font-size:13px;color:var(--text-muted)">${ex.rpe || '—'}</td>
+                <td style="padding:7px 0 7px 8px;font-size:12px;color:var(--text-muted);font-style:italic">${ex.notes || ''}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  let bodyHtml = lockedNote;
+  if (multiWeek) {
+    bodyHtml += weekNums.map(w => `
+      <div style="margin-bottom:24px">
+        <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--primary);margin-bottom:12px;display:flex;align-items:center;gap:10px">
+          📅 Week ${w}
+          <span style="flex:1;height:1px;background:var(--border);display:inline-block"></span>
+        </div>
+        ${weekMap[w].map(dayHtml).join('')}
+      </div>`).join('');
+  } else {
+    bodyHtml += (weekMap[weekNums[0]] || []).map(dayHtml).join('');
+  }
 
   const editBtn = `<button class="btn btn-secondary btn-sm" onclick="editPlan('${p.id}')">✏️ Edit</button>`;
   const delBtn  = `<button class="btn btn-danger btn-sm" onclick="deletePlan('${p.id}')">🗑 Delete</button>`;
+  const weekLabel = multiWeek ? `${weekNums.length} week${weekNums.length>1?'s':''} · ` : '';
 
   return `
     <div class="plan-card">
@@ -771,7 +816,7 @@ function renderPlanCard(p) {
         <div>
           <h3>${p.title}</h3>
           <div style="font-size:13px;color:var(--text-muted);margin-top:4px">
-            ${client ? '👤 ' + client.name + ' · ' : ''}🎯 ${p.goal||'—'} · 📅 ${p.durationWeeks}w · ${p.days.length}d/wk
+            ${client ? '👤 ' + client.name + ' · ' : ''}🎯 ${p.goal||'—'} · 📅 ${weekLabel}${p.durationWeeks}w · ${p.daysPerWeek||p.days.length}d/wk
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -779,7 +824,7 @@ function renderPlanCard(p) {
           ${editBtn} ${delBtn}
         </div>
       </div>
-      <div class="plan-card-body">${lockedNote}${daysHtml}</div>
+      <div class="plan-card-body">${bodyHtml}</div>
     </div>`;
 }
 
@@ -797,12 +842,13 @@ let dayCount = 0;
 
 function openCreatePlan() {
   document.getElementById('plan-modal-title').textContent = 'Create Program';
-  document.getElementById('plan-id').value     = '';
-  document.getElementById('plan-title').value  = '';
-  document.getElementById('plan-goal').value   = '';
-  document.getElementById('plan-weeks').value  = '8';
-  document.getElementById('plan-status').value = 'active';
-  document.getElementById('plan-error').className = 'alert alert-error';
+  document.getElementById('plan-id').value           = '';
+  document.getElementById('plan-title').value        = '';
+  document.getElementById('plan-goal').value         = '';
+  document.getElementById('plan-weeks').value        = '8';
+  document.getElementById('plan-days-per-week').value = '4';
+  document.getElementById('plan-status').value       = 'active';
+  document.getElementById('plan-error').className    = 'alert alert-error';
   populatePlanClients();
   dayCount = 0;
   document.getElementById('days-container').innerHTML = '';
@@ -813,13 +859,14 @@ function openCreatePlan() {
 function editPlan(id) {
   const p = DB.getPlanById(id);
   if (!p) return;
-  document.getElementById('plan-modal-title').textContent = 'Edit Program';
-  document.getElementById('plan-id').value     = p.id;
-  document.getElementById('plan-title').value  = p.title;
-  document.getElementById('plan-goal').value   = p.goal || '';
-  document.getElementById('plan-weeks').value  = p.durationWeeks;
-  document.getElementById('plan-status').value = p.status;
-  document.getElementById('plan-error').className = 'alert alert-error';
+  document.getElementById('plan-modal-title').textContent  = 'Edit Program';
+  document.getElementById('plan-id').value                  = p.id;
+  document.getElementById('plan-title').value               = p.title;
+  document.getElementById('plan-goal').value                = p.goal || '';
+  document.getElementById('plan-weeks').value               = p.durationWeeks;
+  document.getElementById('plan-days-per-week').value       = p.daysPerWeek || 4;
+  document.getElementById('plan-status').value              = p.status;
+  document.getElementById('plan-error').className           = 'alert alert-error';
   populatePlanClients(p.clientId);
   dayCount = 0;
   document.getElementById('days-container').innerHTML = '';
@@ -836,10 +883,12 @@ function populatePlanClients(selectedId) {
 
 function addDay(data) {
   dayCount++;
-  const idx = dayCount;
-  const el  = document.createElement('div');
-  el.className = 'exercise-builder';
-  el.id = 'day-' + idx;
+  const idx  = dayCount;
+  const week = data?.week || 1;
+  const el   = document.createElement('div');
+  el.className      = 'exercise-builder';
+  el.id             = 'day-' + idx;
+  el.dataset.week   = week;
   el.innerHTML = `
     <div class="exercise-builder-header">
       <input type="text" value="${data ? data.label : 'Day ' + idx}"
@@ -854,6 +903,22 @@ function addDay(data) {
   document.getElementById('days-container').appendChild(el);
   if (data?.exercises) data.exercises.forEach(ex => addExercise(idx, ex));
   else addExercise(idx);
+}
+
+function generateBlock() {
+  const weeks       = parseInt(document.getElementById('plan-weeks').value) || 1;
+  const daysPerWeek = parseInt(document.getElementById('plan-days-per-week').value) || 4;
+  if (weeks < 1 || weeks > 52)       { alert('Duration must be between 1 and 52 weeks.'); return; }
+  if (daysPerWeek < 1 || daysPerWeek > 7) { alert('Days per week must be 1–7.'); return; }
+  const total = weeks * daysPerWeek;
+  if (!confirm(`Generate a ${weeks}-week block with ${daysPerWeek} training day${daysPerWeek > 1 ? 's' : ''} per week (${total} days total)?\n\nThis will replace any days already added.`)) return;
+  dayCount = 0;
+  document.getElementById('days-container').innerHTML = '';
+  for (let w = 1; w <= weeks; w++) {
+    for (let d = 1; d <= daysPerWeek; d++) {
+      addDay({ label: `Week ${w} · Day ${d}`, exercises: [], week: w });
+    }
+  }
 }
 
 let exCount = 0;
@@ -907,16 +972,17 @@ function savePlan() {
         notes: exEl.querySelector('.ex-notes')?.value.trim() || '',
       });
     });
-    if (exercises.length) days.push({ label, exercises });
+    if (exercises.length) days.push({ label, week: parseInt(dayEl.dataset.week) || 1, exercises });
   });
 
   if (!days.length) { errEl.textContent = 'Add at least one exercise.'; errEl.classList.add('show'); return; }
 
+  const daysPerWeekInput = parseInt(document.getElementById('plan-days-per-week').value) || 4;
   const existingId = document.getElementById('plan-id').value;
   if (existingId) {
-    DB.updatePlan(existingId, { title, clientId, goal, durationWeeks: weeks, daysPerWeek: days.length, status, days });
+    DB.updatePlan(existingId, { title, clientId, goal, durationWeeks: weeks, daysPerWeek: daysPerWeekInput, status, days });
   } else {
-    DB.addPlan({ id: DB.genId(), coachId: session.id, clientId, title, goal, durationWeeks: weeks, daysPerWeek: days.length, status, days, createdAt: new Date().toISOString() });
+    DB.addPlan({ id: DB.genId(), coachId: session.id, clientId, title, goal, durationWeeks: weeks, daysPerWeek: daysPerWeekInput, status, days, createdAt: new Date().toISOString() });
   }
   closeModal('modal-plan');
   renderPlans();
@@ -950,31 +1016,6 @@ function renderBilling() {
     ? '<span class="badge badge-green">✅ Active</span>'
     : '<span class="badge badge-red">⛔ Expired</span>';
 
-  // Member renewals
-  const members = DB.getUsers().filter(u => u.role === 'client' && u.coachId === session.id);
-  const listEl = document.getElementById('member-renewal-list');
-  if (!listEl) return;
-  if (!members.length) {
-    listEl.innerHTML = '<div class="empty-state" style="margin-top:0"><div class="empty-icon">👥</div><p>No members yet. Add members from the Members page.</p></div>';
-    return;
-  }
-  listEl.innerHTML = members.map(m => {
-    const active = DB.isMembershipActive(m);
-    const expiry = m.membershipExpiry ? formatDate(m.membershipExpiry) : 'N/A';
-    const safeName = m.name.replace(/'/g, "\\'");
-    return `<div class="member-card${active ? '' : ' expired'}">
-      <div class="member-avatar" style="background:var(--primary);color:#fff">${m.name.charAt(0).toUpperCase()}</div>
-      <div class="member-info">
-        <div class="member-name">${m.name}</div>
-        <div class="member-meta">${active ? '✅ Active · Expires ' + expiry : '⛔ Expired on ' + expiry}</div>
-      </div>
-      <div class="member-actions">
-        <button class="btn btn-primary btn-sm" onclick="openPaymentForm('${m.id}','${safeName}','card')">💳 Card</button>
-        <button onclick="openPaymentForm('${m.id}','${safeName}','google')" style="background:#1a1a1a;color:#fff;border:2px solid #4285f4;border-radius:8px;padding:5px 10px;font-weight:700;font-size:12px;cursor:pointer"><span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span></button>
-        <button onclick="openPaymentForm('${m.id}','${safeName}','paypal')" style="background:#003087;color:#fff;border:none;border-radius:8px;padding:5px 10px;font-weight:700;font-size:12px;cursor:pointer"><span style="color:#009cde">Pay</span>Pal</button>
-      </div>
-    </div>`;
-  }).join('');
 }
 
 function openCoachPayment(method) {
