@@ -7,7 +7,8 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Coach Dashboard</title>
-  <link rel="stylesheet" href="style.css?v=20260414" />
+  <meta name="app-version" content="20260416-v2" />
+  <link rel="stylesheet" href="style.css?v=20260416" />
   <style>html{background:#0f0f0f}</style>
   <script type="module">
     import { DB, auth } from './db-firebase.js';
@@ -73,21 +74,15 @@
   <aside class="sidebar">
     <div class="sidebar-logo">
       <div class="icon">🏋️</div>
-      <h2 id="sidebar-biz"><span>GymPlan</span></h2>
+      <h2 id="sidebar-biz"><span>Bix</span></h2>
       <span class="role-badge role-coach">Coach</span>
     </div>
     <nav class="sidebar-nav">
-      <div class="nav-item active" onclick="showPage('overview')" data-page="overview">
-        <span class="nav-icon">📊</span> Overview
-      </div>
-      <div class="nav-item" onclick="showPage('members')" data-page="members">
+      <div class="nav-item active" onclick="showPage('members')" data-page="members">
         <span class="nav-icon">👥</span> Members
       </div>
       <div class="nav-item" onclick="showPage('billing')" data-page="billing">
         <span class="nav-icon">💳</span> Billing
-      </div>
-      <div class="nav-item" onclick="showPage('plans')" data-page="plans">
-        <span class="nav-icon">📋</span> Programs
       </div>
       <div class="nav-item" onclick="showPage('settings')" data-page="settings">
         <span class="nav-icon">⚙️</span> Settings
@@ -118,38 +113,8 @@
       <div id="page-action"></div>
     </div>
 
-    <!-- ══ OVERVIEW ══ -->
-    <div class="page active" id="page-overview">
-      <div class="stats-row">
-        <div class="stat-card">
-          <div class="stat-icon">✅</div>
-          <div class="stat-value" id="stat-active">0</div>
-          <div class="stat-label">Active Members</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">⛔</div>
-          <div class="stat-value" id="stat-expired">0</div>
-          <div class="stat-label">Expired</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">📋</div>
-          <div class="stat-value" id="stat-plans">0</div>
-          <div class="stat-label">Programs</div>
-        </div>
-      </div>
-
-      <!-- Coach membership status -->
-      <div id="coach-membership-status" style="margin-bottom:20px"></div>
-
-      <!-- Expiring soon -->
-      <div id="expiring-soon-wrap" style="display:none;margin-bottom:20px">
-        <div class="section-divider">⚠️ Expiring within 14 days</div>
-        <div id="expiring-soon-list"></div>
-      </div>
-    </div>
-
     <!-- ══ MEMBERS ══ -->
-    <div class="page" id="page-members">
+    <div class="page active" id="page-members">
       <div style="display:flex;justify-content:flex-end;margin-bottom:20px">
         <button class="btn btn-primary btn-sm" onclick="openAddMember()">+ Add Member</button>
       </div>
@@ -204,6 +169,8 @@
 
     <!-- ══ SETTINGS ══ -->
     <div class="page" id="page-settings">
+      <!-- Membership status card -->
+      <div class="card" id="coach-membership-status" style="max-width:480px;margin-bottom:20px"></div>
       <div class="card" style="max-width:480px">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:20px">Dashboard Colors</h3>
         <div class="form-group">
@@ -227,29 +194,6 @@
         <div class="alert alert-success" id="coach-settings-success" style="margin-top:14px"></div>
       </div>
     </div>
-
-    <!-- ══ PROGRAMS ══ -->
-    <div class="page" id="page-plans">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
-        <select id="filter-client" onchange="renderPlans()"
-          style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px 12px;font-size:13px;outline:none">
-          <option value="">All Members</option>
-        </select>
-        <button class="btn btn-secondary btn-sm" id="five-week-btn" onclick="toggleFiveWeekView()" style="margin-left:auto">📅 Next 5 Weeks</button>
-        <button class="btn btn-primary btn-sm" onclick="openCreatePlan()">+ New Program</button>
-      </div>
-      <div id="five-week-section" style="display:none;margin-bottom:20px;padding:16px;background:var(--surface2);border-radius:8px">
-        <label style="display:block;font-size:13px;color:var(--text-muted);margin-bottom:8px">Start Date</label>
-        <input type="date" id="five-week-start" onchange="renderFiveWeekView()" style="padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text)">
-        <div style="font-size:12px;color:var(--text-muted);margin-top:8px" id="five-week-info"></div>
-      </div>
-      <div id="plans-list"></div>
-      <div class="empty-state" id="plans-empty" style="display:none">
-        <div class="empty-icon">📋</div>
-        <p>No programs yet. Create one for a member!</p>
-      </div>
-    </div>
-
 
   </main>
 </div>
@@ -327,6 +271,12 @@
         <label>Training Days / Week</label>
         <input type="number" id="plan-days-per-week" value="4" min="1" max="7" />
       </div>
+    </div>
+
+    <div class="form-group" style="margin-top:16px">
+      <label>Diet Notes (optional)</label>
+      <textarea id="plan-diet" placeholder="e.g. High protein, 2500 cal/day, avoid sugar…" rows="3"
+        style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:10px 12px;font-size:13px;resize:vertical;outline:none"></textarea>
     </div>
 
     <hr class="divider" />
@@ -540,11 +490,9 @@ function logout() {
 let pageInfo = {};
 function initPageInfo() {
   pageInfo = {
-  overview: ['Overview',  'Welcome back, ' + session.name.split(' ')[0]],
-  members:  ['Members',   'Manage active & expired memberships'],
-  billing:  ['Billing',   'Renew member memberships'],
-  plans:    ['Programs',  'Create and assign training programs'],
-  settings: ['Settings',  'Customize your dashboard appearance'],
+    members:  ['Members',   'Manage active & expired memberships'],
+    billing:  ['Billing',   'Renew member memberships'],
+    settings: ['Settings',  'Customize your dashboard appearance'],
   };
 }
 function showPage(name) {
@@ -553,10 +501,8 @@ function showPage(name) {
   document.getElementById('page-' + name).classList.add('active');
   document.getElementById('page-title').textContent = pageInfo[name][0];
   document.getElementById('page-sub').textContent   = pageInfo[name][1];
-  if (name === 'overview') renderOverview();
   if (name === 'members')  renderMembers();
   if (name === 'billing')  renderBilling();
-  if (name === 'plans')    renderPlans();
   if (name === 'settings') loadCoachSettings();
 }
 
@@ -570,56 +516,23 @@ document.querySelectorAll('.modal-overlay').forEach(o =>
 // ════════════════════════════════
 // OVERVIEW
 // ════════════════════════════════
-async function renderOverview() {
-  const clients = await DB.getClientsByCoach(session.id);
-  const active  = clients.filter(c => DB.isMembershipActive(c));
-  const expired = clients.filter(c => !DB.isMembershipActive(c));
-  const plans   = await DB.getPlansByCoach(session.id);
-
-  document.getElementById('stat-active').textContent  = active.length;
-  document.getElementById('stat-expired').textContent = expired.length;
-  document.getElementById('stat-plans').textContent   = plans.length;
-
-  // Coach's own membership status
+// Renders membership status card into #coach-membership-status (shown in Settings page)
+async function renderMembershipCard() {
   const coach = await DB.getUserById(session.id);
   const coachActive = DB.isMembershipActive(coach);
-  const expiry = coach.membershipExpiry
+  const expiry = coach && coach.membershipExpiry
     ? new Date(coach.membershipExpiry).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
     : 'N/A';
   const membershipEl = document.getElementById('coach-membership-status');
+  if (!membershipEl) return;
   membershipEl.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-radius:10px;
-      background:${coachActive ? 'rgba(74,222,128,.08)' : 'rgba(239,68,68,.08)'};
-      border:1px solid ${coachActive ? 'rgba(74,222,128,.3)' : 'rgba(239,68,68,.3)'}">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
       <div>
-        <span style="font-weight:600;font-size:14px">Your Membership</span>
-        <span style="font-size:13px;color:var(--text-muted);margin-left:10px">${coachActive ? 'Expires ' + expiry : 'Expired on ' + expiry}</span>
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px">Your Membership</div>
+        <div style="font-size:13px;color:var(--text-muted)">${coachActive ? 'Expires ' + expiry : 'Expired on ' + expiry}</div>
       </div>
       <span style="font-size:13px;font-weight:700;color:${coachActive ? '#4ade80' : '#ef4444'}">${coachActive ? '✅ Active' : '❌ Expired'}</span>
     </div>`;
-
-  // Expiring within 14 days
-  const today  = new Date();
-  const soon14 = new Date(); soon14.setDate(today.getDate() + 14);
-  const expiring = active.filter(c => new Date(c.membershipExpiry) <= soon14);
-  const soonWrap = document.getElementById('expiring-soon-wrap');
-  const soonList = document.getElementById('expiring-soon-list');
-  if (expiring.length) {
-    soonWrap.style.display = '';
-    soonList.innerHTML = expiring.map(c => `
-      <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(243,156,18,.08);border:1px solid rgba(243,156,18,.25);border-radius:10px;padding:12px 16px;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-        <div>
-          <strong>${c.name}</strong>
-          <span style="font-size:12px;color:var(--text-muted);margin-left:8px">@${c.username}</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:10px">
-          <span class="badge badge-yellow">Expires ${formatDate(c.membershipExpiry)}</span>
-          <button class="btn btn-secondary btn-sm" onclick="openEditMember('${c.id}')">Renew</button>
-        </div>
-      </div>`).join('');
-  } else {
-    soonWrap.style.display = 'none';
-  }
 }
 
 // ════════════════════════════════
@@ -661,21 +574,26 @@ async function renderMemberList(listId, emptyId, clients, isActive) {
       : `<span class="badge badge-red">Expired</span>`;
 
     const actions = isActive
-      ? `<button class="btn btn-primary btn-sm"    onclick="viewMemberPrograms('${c.id}')">📋 Programs</button>
-         <button class="btn btn-secondary btn-sm"  onclick="openEditMember('${c.id}')">✏️ Edit</button>
-         <button class="btn btn-danger btn-sm"     onclick="deleteMember('${c.id}')">Remove</button>`
-      : `<button class="btn btn-success btn-sm"    onclick="openEditMember('${c.id}')">🔄 Renew</button>
-         <button class="btn btn-secondary btn-sm"  onclick="viewMemberPrograms('${c.id}')">📋 View</button>
-         <button class="btn btn-danger btn-sm"     onclick="deleteMember('${c.id}')">Remove</button>`;
+      ? `<button class="btn btn-secondary btn-sm"  onclick="openEditMember('${c.id}');event.stopPropagation()">✏️ Edit</button>
+         <button class="btn btn-danger btn-sm"     onclick="deleteMember('${c.id}');event.stopPropagation()">Remove</button>`
+      : `<button class="btn btn-success btn-sm"    onclick="openEditMember('${c.id}');event.stopPropagation()">🔄 Renew</button>
+         <button class="btn btn-danger btn-sm"     onclick="deleteMember('${c.id}');event.stopPropagation()">Remove</button>`;
 
     return `
-      <div class="member-card ${isActive ? '' : 'expired'}">
+      <div class="member-card ${isActive ? '' : 'expired'}" id="card-${c.id}" onclick="toggleMemberPrograms('${c.id}')" style="cursor:pointer">
         <div class="member-avatar" style="background:${avatarBg}">${initials}</div>
         <div class="member-info">
           <div class="member-name">${c.name} ${badge}</div>
           <div class="member-meta">@${c.username} · ${planCount} program${planCount!==1?'s':''} · ${expLabel}</div>
         </div>
         <div class="member-actions">${actions}</div>
+      </div>
+      <div id="programs-${c.id}" class="member-programs-panel" style="display:none;margin:-8px 0 12px;padding:16px;background:var(--surface2);border-radius:0 0 12px 12px;border:1px solid var(--border);border-top:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <span style="font-size:13px;font-weight:600;color:var(--text-muted)">Programs for ${c.name}</span>
+          <button class="btn btn-primary btn-sm" onclick="openCreatePlanFor('${c.id}');event.stopPropagation()">+ New Program</button>
+        </div>
+        <div id="programs-list-${c.id}">Loading…</div>
       </div>`;
   }).join('');
 }
@@ -737,20 +655,45 @@ async function saveMember() {
   }
   closeModal('modal-member');
   renderMembers();
-  renderOverview();
 }
 
 async function deleteMember(id) {
   if (!confirm('Remove this member and all their programs?')) return;
   await DB.deleteUser(id);
   renderMembers();
-  renderOverview();
 }
 
-function viewMemberPrograms(clientId) {
-  showPage('plans');
-  document.getElementById('filter-client').value = clientId;
-  renderPlans();
+// ── Click-to-expand member programs ──
+const _expandedMembers = new Set();
+async function toggleMemberPrograms(clientId) {
+  const panel = document.getElementById('programs-' + clientId);
+  const listEl = document.getElementById('programs-list-' + clientId);
+  if (!panel) return;
+
+  if (_expandedMembers.has(clientId)) {
+    _expandedMembers.delete(clientId);
+    panel.style.display = 'none';
+    return;
+  }
+  _expandedMembers.add(clientId);
+  panel.style.display = 'block';
+
+  const plans = await DB.getPlansByClient(clientId);
+  if (!plans.length) {
+    listEl.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">No programs yet.</p>';
+    return;
+  }
+  const cards = await Promise.all(plans.map(p => renderPlanCard(p)));
+  listEl.innerHTML = cards.join('');
+}
+
+function openCreatePlanFor(clientId) {
+  openCreatePlan();
+  // Pre-select the client after modal opens
+  setTimeout(() => {
+    const sel = document.getElementById('plan-client');
+    if (sel) sel.value = clientId;
+  }, 50);
 }
 
 // ════════════════════════════════
@@ -880,11 +823,16 @@ function selectPlanWeek(planId, weekNum) {
   });
 }
 
-function deletePlan(id) {
+async function deletePlan(id) {
   if (!confirm('Delete this program?')) return;
-  DB.deletePlan(id);
-  renderPlans();
-  renderOverview();
+  // Find which client this plan belongs to so we can refresh their panel
+  const plan = await DB.getPlanById(id);
+  await DB.deletePlan(id);
+  await renderMembers();
+  if (plan && _expandedMembers.has(plan.clientId)) {
+    _expandedMembers.delete(plan.clientId);
+    await toggleMemberPrograms(plan.clientId);
+  }
 }
 
 // ════════════════════════════════
@@ -897,6 +845,7 @@ function openCreatePlan() {
   document.getElementById('plan-id').value                  = '';
   document.getElementById('plan-title').value               = '';
   document.getElementById('plan-goal').value                = '';
+  document.getElementById('plan-diet').value                = '';
   document.getElementById('plan-weeks').value               = '8';
   document.getElementById('plan-days-per-week').value       = '4';
   document.getElementById('plan-status').value              = 'active';
@@ -906,13 +855,14 @@ function openCreatePlan() {
   openModal('modal-plan');
 }
 
-function editPlan(id) {
-  const p = DB.getPlanById(id);
+async function editPlan(id) {
+  const p = await DB.getPlanById(id);
   if (!p) return;
   document.getElementById('plan-modal-title').textContent  = 'Edit Program';
   document.getElementById('plan-id').value                  = p.id;
   document.getElementById('plan-title').value               = p.title;
   document.getElementById('plan-goal').value                = p.goal || '';
+  document.getElementById('plan-diet').value                = p.dietNotes || '';
   document.getElementById('plan-weeks').value               = p.durationWeeks;
   document.getElementById('plan-days-per-week').value       = p.daysPerWeek || 4;
   document.getElementById('plan-status').value              = p.status;
@@ -1011,12 +961,13 @@ function addExercise(dayIdx, data) {
   document.getElementById('exercises-' + dayIdx).appendChild(row);
 }
 
-function savePlan() {
-  const title    = document.getElementById('plan-title').value.trim();
-  const clientId = document.getElementById('plan-client').value;
-  const goal     = document.getElementById('plan-goal').value.trim();
-  const weeks    = parseInt(document.getElementById('plan-weeks').value) || 8;
-  const status   = document.getElementById('plan-status').value;
+async function savePlan() {
+  const title      = document.getElementById('plan-title').value.trim();
+  const clientId   = document.getElementById('plan-client').value;
+  const goal       = document.getElementById('plan-goal').value.trim();
+  const dietNotes  = document.getElementById('plan-diet').value.trim();
+  const weeks      = parseInt(document.getElementById('plan-weeks').value) || 8;
+  const status     = document.getElementById('plan-status').value;
   const errEl    = document.getElementById('plan-error');
   errEl.className = 'alert alert-error';
 
@@ -1047,13 +998,17 @@ function savePlan() {
   const daysPerWeekInput = parseInt(document.getElementById('plan-days-per-week').value) || 4;
   const existingId = document.getElementById('plan-id').value;
   if (existingId) {
-    DB.updatePlan(existingId, { title, clientId, goal, durationWeeks: weeks, daysPerWeek: daysPerWeekInput, status, days });
+    await DB.updatePlan(existingId, { title, clientId, goal, dietNotes, durationWeeks: weeks, daysPerWeek: daysPerWeekInput, status, days });
   } else {
-    DB.addPlan({ id: DB.genId(), coachId: session.id, clientId, title, goal, durationWeeks: weeks, daysPerWeek: daysPerWeekInput, status, days, createdAt: new Date().toISOString() });
+    await DB.addPlan({ id: DB.genId(), coachId: session.id, clientId, title, goal, dietNotes, durationWeeks: weeks, daysPerWeek: daysPerWeekInput, status, days, createdAt: new Date().toISOString() });
   }
   closeModal('modal-plan');
-  renderPlans();
-  renderOverview();
+  await renderMembers();
+  // Re-open the member's program panel if it was expanded
+  if (_expandedMembers.has(clientId)) {
+    _expandedMembers.delete(clientId);
+    await toggleMemberPrograms(clientId);
+  }
 }
 
 
@@ -1235,6 +1190,7 @@ async function processGooglePayment() {
 // SETTINGS
 // ════════════════════════════════
 async function loadCoachSettings() {
+  await renderMembershipCard();
   const coach = await DB.getUserById(session.id);
   const s     = await DB.getSettings();
   const bgColor     = (coach && coach.hasCustomColors && coach.bgColor)     ? coach.bgColor     : (s.bgColor     || '#0f0f0f');
@@ -1296,71 +1252,6 @@ function closeSidebar() {
 }
 document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', closeSidebar));
 
-// ── 5-Week Program View ──
-let fiveWeekMode = false;
-function toggleFiveWeekView() {
-  fiveWeekMode = !fiveWeekMode;
-  const section = document.getElementById('five-week-section');
-  const btn = document.getElementById('five-week-btn');
-  if (fiveWeekMode) {
-    section.style.display = 'block';
-    btn.style.background = 'var(--primary)';
-    const today = new Date();
-    const dateStr = today.toISOString().split('T')[0];
-    document.getElementById('five-week-start').value = dateStr;
-    renderFiveWeekView();
-  } else {
-    section.style.display = 'none';
-    btn.style.background = '';
-    renderPlans();
-  }
-}
-
-async function renderFiveWeekView() {
-  const startDateStr = document.getElementById('five-week-start').value;
-  if (!startDateStr) return;
-
-  const startDate = new Date(startDateStr);
-  const endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + 35); // 5 weeks = 35 days
-
-  document.getElementById('five-week-info').textContent =
-    `Programs from ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()} (Trainers will see this 5-week preview)`;
-
-  const allPlans = await DB.getPlansByCoach(session.id);
-  const plansList = document.getElementById('plans-list');
-
-  const cards = await Promise.all(allPlans.map(async p => {
-    const client = await DB.getUserById(p.clientId);
-    const createdDate = new Date(p.createdAt);
-    const withinRange = createdDate >= startDate && createdDate <= endDate;
-
-    return `
-    <div class="card" style="margin-bottom:20px;opacity:${withinRange ? '1' : '0.4'}">
-      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
-        <div>
-          <h3 style="font-size:16px;margin-bottom:4px">${p.title}</h3>
-          <p style="font-size:13px;color:var(--text-muted)">For ${client?.name} • ${p.durationWeeks} weeks</p>
-          <p style="font-size:12px;color:${withinRange ? 'var(--primary)' : 'var(--text-muted)'}">${withinRange ? '✅ Visible to trainer' : '⊘ Outside 5-week window'}</p>
-        </div>
-      </div>
-      <div class="plan-card-body" style="padding:0">
-        ${p.days.map((day, i) => `
-          <div class="day-section" style="border-top:1px solid var(--border);padding-top:12px;padding-bottom:12px">
-            <h4 style="font-size:14px;font-weight:600;margin-bottom:12px">${day.label}</h4>
-            ${day.exercises.map(ex => `
-              <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">
-                ${ex.name} — ${ex.sets}×${ex.reps} RPE ${ex.rpe || 'N/A'}
-                ${ex.notes ? `<div style="margin-top:4px;color:var(--text-muted);font-size:12px">${ex.notes}</div>` : ''}
-              </div>
-            `).join('')}
-          </div>
-        `).join('')}
-      </div>
-    </div>`;
-  }));
-  plansList.innerHTML = allPlans.length ? cards.join('') : '<div class="empty-state"><div class="empty-icon">📋</div><p>No programs in this 5-week window.</p></div>';
-}
 
 // ── Boot: wait for session from module auth guard ──
 document.addEventListener('sessionReady', async function() {
@@ -1374,7 +1265,7 @@ document.addEventListener('sessionReady', async function() {
 
   await applyBranding();
   await checkCoachMembership();
-  showPage('overview');
+  showPage('members');
 
   if (window.innerWidth > 768 && localStorage.getItem('sidebar_collapsed') === '1') {
     document.querySelector('.dashboard').classList.add('sidebar-collapsed');

@@ -1,7 +1,7 @@
 // ── Firebase Configuration & Initialization ──
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, addDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyArUPdo36Zwv33TIirn9AuOb_DUH4uG1ok",
@@ -228,18 +228,24 @@ const DB = {
     try {
       const docSnap = await getDoc(doc(db, 'settings', 'default'));
       if (docSnap.exists()) {
-        return docSnap.data();
+        const data = docSnap.data();
+        // Migrate old GymPlan branding to Bix
+        if (data.businessName === 'GymPlan') {
+          data.businessName = 'Bix';
+          await updateDoc(doc(db, 'settings', 'default'), { businessName: 'Bix' }).catch(() => {});
+        }
+        return data;
       }
       // Fallback defaults
       return {
-        businessName: 'GymPlan',
+        businessName: 'Bix',
         bgColor: '#0f0f0f',
         accentColor: '#e8442a'
       };
     } catch (e) {
       console.error('getSettings error:', e);
       return {
-        businessName: 'GymPlan',
+        businessName: 'Bix',
         bgColor: '#0f0f0f',
         accentColor: '#e8442a'
       };
@@ -335,7 +341,7 @@ const DB = {
     ];
 
     const seedData = {
-      businessName: 'GymPlan',
+      businessName: 'Bix',
       bgColor: '#0f0f0f',
       accentColor: '#e8442a',
       seedVersion: 1
@@ -360,4 +366,4 @@ const DB = {
 };
 
 // Export for module usage
-export { DB, auth, db };
+export { DB, auth, db, EmailAuthProvider, reauthenticateWithCredential, updatePassword };
