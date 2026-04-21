@@ -77,6 +77,20 @@
 
     <!-- ══ HOME ══ -->
     <div class="page active" id="page-home">
+
+      <!-- Weight bar -->
+      <div id="weight-bar" style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:12px 16px;background:var(--surface2);border-radius:10px;flex-wrap:wrap">
+        <span style="font-size:13px;color:var(--text-muted)">⚖️ Current Weight:</span>
+        <span id="weight-display" style="font-weight:700;font-size:15px">— kg</span>
+        <div id="weight-edit-row" style="display:none;align-items:center;gap:8px">
+          <input type="number" id="weight-input" placeholder="kg" step="0.1" inputmode="decimal"
+            style="width:72px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:13px" />
+          <button onclick="saveWeight()" class="btn btn-primary btn-sm">Save</button>
+          <button onclick="cancelWeightEdit()" class="btn btn-secondary btn-sm">Cancel</button>
+        </div>
+        <button id="weight-edit-btn" onclick="startWeightEdit()" class="btn btn-secondary btn-sm" style="margin-left:auto">Update</button>
+      </div>
+
       <div id="week-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px"></div>
       <div id="week-content"></div>
     </div>
@@ -232,12 +246,42 @@ function showPage(name) {
 // ════════════════════════════════
 // HOME — Week Navigation
 // ════════════════════════════════
+async function loadWeightBar() {
+  try {
+    const user = await DB.getUserById(session.id);
+    const wt   = user?.currentWeight;
+    document.getElementById('weight-display').textContent  = wt ? wt + ' kg' : '— kg';
+    document.getElementById('weight-input').value          = wt || '';
+  } catch(e) { /* ignore */ }
+}
+
+function startWeightEdit() {
+  document.getElementById('weight-edit-row').style.display = 'flex';
+  document.getElementById('weight-edit-btn').style.display = 'none';
+  document.getElementById('weight-input').focus();
+}
+
+function cancelWeightEdit() {
+  document.getElementById('weight-edit-row').style.display = 'none';
+  document.getElementById('weight-edit-btn').style.display = '';
+}
+
+async function saveWeight() {
+  const val = parseFloat(document.getElementById('weight-input').value);
+  if (!val || val <= 0) return;
+  await DB.updateUser(session.id, { currentWeight: val });
+  session.currentWeight = val;
+  document.getElementById('weight-display').textContent = val + ' kg';
+  cancelWeightEdit();
+}
+
 async function renderHome() {
   const tabsEl    = document.getElementById('week-tabs');
   const contentEl = document.getElementById('week-content');
 
   tabsEl.innerHTML    = '<span style="color:var(--text-muted);font-size:13px">Loading…</span>';
   contentEl.innerHTML = '';
+  loadWeightBar(); // non-blocking
 
   const plans = await DB.getPlansByClient(session.id);
   currentPlan = plans.find(p => p.status === 'active') || plans[0] || null;
@@ -329,8 +373,34 @@ function renderWeek(weekNum) {
       </div>`).join('');
   }
 
-  // Diet section
-  if (currentPlan.dietNotes) {
+  // Diet section — show today's meals from structured dietPlan (or legacy dietNotes)
+  const dayKeys   = ['sun','mon','tue','wed','thu','fri','sat'];
+  const dayLabels = { mon:'Monday', tue:'Tuesday', wed:'Wednesday', thu:'Thursday', fri:'Friday', sat:'Saturday', sun:'Sunday' };
+  const todayKey  = dayKeys[new Date().getDay()];
+  const dp        = currentPlan.dietPlan;
+
+  if (dp && Object.values(dp).some(d => d && d.length > 0)) {
+    const todayMeals = dp[todayKey] || [];
+    html += `
+      <div class="card" style="margin-top:4px">
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">🥗 Today's Diet <span style="font-size:12px;font-weight:400;color:var(--text-muted)">${dayLabels[todayKey]}</span></h3>
+        ${!todayMeals.length
+          ? `<p style="font-size:13px;color:var(--text-muted)">No meals set for today. Check another day with your coach.</p>`
+          : todayMeals.map(m => `
+            <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+              <div style="font-weight:700;font-size:14px;margin-bottom:4px">${m.name}</div>
+              ${m.foods ? `<div style="font-size:13px;color:var(--text-muted)">${m.foods}</div>` : ''}
+              ${(m.cal || m.protein || m.carbs || m.fat)
+                ? `<div style="font-size:12px;margin-top:5px;color:var(--primary)">${[
+                    m.cal     ? m.cal     + ' kcal'    : '',
+                    m.protein ? m.protein + 'g protein' : '',
+                    m.carbs   ? m.carbs   + 'g carbs'  : '',
+                    m.fat     ? m.fat     + 'g fat'    : ''
+                  ].filter(Boolean).join(' · ')}</div>`
+                : ''}
+            </div>`).join('')}
+      </div>`;
+  } else if (currentPlan.dietNotes) {
     html += `
       <div class="card" style="margin-top:4px">
         <h3 style="font-size:14px;font-weight:700;margin-bottom:10px">🥗 Diet Plan</h3>
