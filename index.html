@@ -615,37 +615,18 @@
 
     <div class="login-card">
       <div class="error-msg" id="forgot-error"></div>
+      <div id="forgot-success" style="display:none;padding:14px;background:#10b98122;border:1px solid #10b981;border-radius:8px;color:#10b981;font-size:13px;margin-bottom:14px;text-align:center"></div>
 
-      <!-- Step 1: Phone Number -->
-      <div id="forgot-step-1">
+      <!-- Email-based reset (Firebase native) -->
+      <div id="forgot-step-email">
         <div class="field">
-          <label data-i18n="fpPhone">Phone Number</label>
-          <input type="tel" id="forgot-phone" placeholder="+1 (555) 123-4567" data-i18n-ph="fpPhonePh" />
+          <label>Email Address</label>
+          <input type="email" id="forgot-email" placeholder="you@example.com" autocomplete="email" />
+          <div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.5">
+            We'll send a secure password reset link to your email.
+          </div>
         </div>
-        <button class="sign-in-btn" onclick="forgotSendCode()" data-i18n="fpSend">Send Code</button>
-      </div>
-
-      <!-- Step 2: Verification Code -->
-      <div id="forgot-step-2" style="display:none">
-        <div class="field">
-          <label data-i18n="fpCodeLabel">6-Digit Code</label>
-          <input type="text" id="forgot-code" placeholder="000000" maxlength="6" style="letter-spacing:6px;font-size:20px;text-align:center" />
-        </div>
-        <button class="sign-in-btn" onclick="forgotVerifyCode()" data-i18n="fpVerify">Verify Code</button>
-        <button type="button" class="forgot-pass-btn" style="display:block;width:100%;text-align:center;margin-top:14px" onclick="forgotBackToPhone()" data-i18n="fpBack">← Use a different number</button>
-      </div>
-
-      <!-- Step 3: New Password -->
-      <div id="forgot-step-3" style="display:none">
-        <div class="field">
-          <label data-i18n="fpNewPass">New Password</label>
-          <input type="password" id="forgot-pass-1" placeholder="Enter new password" data-i18n-ph="fpNewPassPh" />
-        </div>
-        <div class="field">
-          <label data-i18n="fpConfPass">Confirm Password</label>
-          <input type="password" id="forgot-pass-2" placeholder="Confirm password" data-i18n-ph="fpConfPassPh" />
-        </div>
-        <button class="sign-in-btn" onclick="forgotResetPassword()" data-i18n="fpReset">Reset Password</button>
+        <button class="sign-in-btn" onclick="forgotSendEmail()">Send Reset Link</button>
       </div>
     </div>
 
@@ -787,19 +768,11 @@
   // Focus first input
   document.getElementById('login-user').focus();
 
-  // ══ FORGOT PASSWORD FLOW (kept for backward compatibility, but not fully integrated with Firebase) ══
+  // ══ FORGOT PASSWORD FLOW (Firebase native) ══
   function showForgotPage() {
-    // Reset all steps
-    document.getElementById('forgot-step-1').style.display = 'block';
-    document.getElementById('forgot-step-2').style.display = 'none';
-    document.getElementById('forgot-step-3').style.display = 'none';
-    document.getElementById('forgot-phone').value = '';
-    document.getElementById('forgot-code').value = '';
-    document.getElementById('forgot-pass-1').value = '';
-    document.getElementById('forgot-pass-2').value = '';
+    document.getElementById('forgot-email').value = '';
     document.getElementById('forgot-error').className = 'error-msg';
-    document.getElementById('forgot-subtitle').textContent = 'Reset your password';
-    // Animate out login, animate in forgot
+    document.getElementById('forgot-success').style.display = 'none';
     const loginC = document.querySelector('.login-container');
     loginC.style.transition = 'opacity .3s, transform .3s';
     loginC.style.opacity = '0';
@@ -816,7 +789,7 @@
         fc.style.opacity = '1';
         fc.style.transform = 'translateX(0)';
       });
-      document.getElementById('forgot-phone').focus();
+      document.getElementById('forgot-email').focus();
     }, 300);
   }
 
@@ -837,78 +810,43 @@
         loginC.style.opacity = '1';
         loginC.style.transform = 'translateX(0)';
       });
-      sessionStorage.removeItem('forgot_code');
-      sessionStorage.removeItem('forgot_phone');
     }, 300);
   }
 
-  function forgotSendCode() {
-    const phone = document.getElementById('forgot-phone').value.trim();
+  async function forgotSendEmail() {
+    const email = document.getElementById('forgot-email').value.trim();
     const errEl = document.getElementById('forgot-error');
+    const successEl = document.getElementById('forgot-success');
+    errEl.className = 'error-msg';
+    successEl.style.display = 'none';
 
-    if (!phone) {
-      errEl.textContent = 'Please enter a phone number.';
+    if (!email || !email.includes('@')) {
+      errEl.textContent = 'Please enter a valid email address.';
       errEl.className = 'error-msg visible';
       return;
     }
 
-    // Generate 6-digit code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const timestamp = Date.now();
-
-    // Store code and phone in sessionStorage (with 5 minute expiry)
-    sessionStorage.setItem('forgot_code', code);
-    sessionStorage.setItem('forgot_phone', phone);
-    sessionStorage.setItem('forgot_code_time', timestamp);
-
-    // Show code in alert
-    alert(`Verification code sent to ${phone}:\n\n${code}\n\n(Code valid for 5 minutes)`);
-
-    // Move to step 2
-    document.getElementById('forgot-step-1').style.display = 'none';
-    document.getElementById('forgot-step-2').style.display = 'block';
-    document.getElementById('forgot-phone-display').textContent = phone;
-    document.getElementById('forgot-error').className = 'error-msg';
-    document.getElementById('forgot-code').focus();
-  }
-
-  function forgotVerifyCode() {
-    const code = document.getElementById('forgot-code').value.trim();
-    const storedCode = sessionStorage.getItem('forgot_code');
-    const storedTime = sessionStorage.getItem('forgot_code_time');
-    const errEl = document.getElementById('forgot-error');
-
-    if (!code) {
-      errEl.textContent = 'Please enter the verification code.';
-      errEl.className = 'error-msg visible';
-      return;
+    try {
+      await DB.sendPasswordReset(email);
+      successEl.textContent = '✅ Reset link sent! Check your inbox (and spam folder).';
+      successEl.style.display = 'block';
+      document.getElementById('forgot-email').value = '';
+    } catch (e) {
+      // Firebase gives error codes but for security reveal-prevention,
+      // we show success even on "user not found"
+      console.warn('Password reset:', e.code);
+      if (e.code === 'auth/invalid-email') {
+        errEl.textContent = 'Invalid email format.';
+        errEl.className = 'error-msg visible';
+      } else if (e.code === 'auth/too-many-requests') {
+        errEl.textContent = 'Too many attempts. Please try again later.';
+        errEl.className = 'error-msg visible';
+      } else {
+        // Don't leak whether the email exists
+        successEl.textContent = '✅ If that email is registered, a reset link was sent.';
+        successEl.style.display = 'block';
+      }
     }
-
-    // Check code expiry (5 minutes = 300000ms)
-    if (Date.now() - parseInt(storedTime) > 300000) {
-      errEl.textContent = 'Code has expired. Please send a new code.';
-      errEl.className = 'error-msg visible';
-      return;
-    }
-
-    if (code !== storedCode) {
-      errEl.textContent = 'Invalid code. Please try again.';
-      errEl.className = 'error-msg visible';
-      return;
-    }
-
-    // Code is valid, move to step 3
-    document.getElementById('forgot-step-2').style.display = 'none';
-    document.getElementById('forgot-step-3').style.display = 'block';
-    document.getElementById('forgot-error').className = 'error-msg';
-    document.getElementById('forgot-pass-1').focus();
-  }
-
-  function forgotBackToPhone() {
-    document.getElementById('forgot-step-1').style.display = 'block';
-    document.getElementById('forgot-step-2').style.display = 'none';
-    document.getElementById('forgot-phone').value = '';
-    document.getElementById('forgot-phone').focus();
   }
 
   // ════════════════════════════════
@@ -1013,64 +951,9 @@
 
   window.showForgotPage = showForgotPage;
   window.showLoginPage = showLoginPage;
-  window.forgotSendCode = forgotSendCode;
-  window.forgotVerifyCode = forgotVerifyCode;
-  window.forgotBackToPhone = forgotBackToPhone;
+  window.forgotSendEmail = forgotSendEmail;
   window.setLang = setLang;
   window.toggleLangMenu = toggleLangMenu;
-  window.forgotResetPassword = forgotResetPassword;
-
-  function forgotResetPassword() {
-    const pass1 = document.getElementById('forgot-pass-1').value;
-    const pass2 = document.getElementById('forgot-pass-2').value;
-    const phone = sessionStorage.getItem('forgot_phone');
-    const errEl = document.getElementById('forgot-error');
-
-    if (!pass1 || !pass2) {
-      errEl.textContent = 'Please enter both passwords.';
-      errEl.className = 'error-msg visible';
-      return;
-    }
-
-    if (pass1 !== pass2) {
-      errEl.textContent = 'Passwords do not match.';
-      errEl.className = 'error-msg visible';
-      return;
-    }
-
-    if (pass1.length < 6) {
-      errEl.textContent = 'Password must be at least 6 characters.';
-      errEl.className = 'error-msg visible';
-      return;
-    }
-
-    // Find user by phone number (search through all users)
-    // Note: This is a simplified approach; in production, you'd verify the phone was registered
-    const users = DB.getUsers();
-    const user = users.find(u => u.phone === phone || u.name.includes(phone));
-
-    if (user) {
-      DB.updateUser(user.id, { password: pass1 });
-      alert('Password reset successfully! You can now log in with your new password.');
-      showLoginPage();
-      setTimeout(() => {
-        document.getElementById('login-user').value = user.username;
-        document.getElementById('login-pass').value = '';
-        document.getElementById('login-user').focus();
-      }, 350);
-    } else {
-      const firstUser = users.find(u => u.role === 'coach') || users.find(u => u.role === 'admin');
-      if (firstUser) {
-        DB.updateUser(firstUser.id, { password: pass1 });
-        alert('Password reset successfully! You can now log in with your new password.');
-        showLoginPage();
-        setTimeout(() => {
-          document.getElementById('login-user').value = firstUser.username;
-          document.getElementById('login-pass').value = '';
-        }, 350);
-      }
-    }
-  }
 </script>
 </body>
 </html>

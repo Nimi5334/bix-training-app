@@ -6,12 +6,18 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <meta name="app-version" content="20260416-v2" />
+  <meta name="app-version" content="20260423-v3" />
   <title>Bix – My Training</title>
-  <link rel="stylesheet" href="style.css?v=20260416" />
-  <style>html{background:#0f0f0f}</style>
+  <link rel="stylesheet" href="style.css?v=20260423" />
+  <style>html{background:#0a0a0f}</style>
   <script type="module">
     import { DB, auth, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from './db-firebase.js';
+    import * as PaymentModule from './payment-paypal.js';
+    import { toast } from './toast.js';
+    import { MessagingUI, subscribeUnreadCount } from './messaging.js';
+    import { Analytics } from './analytics.js';
+    import { Gamification } from './gamification.js';
+    import { VideoFormCheck } from './video-form-check.js';
     // Auth guard: redirect if not logged in or not client
     auth.onAuthStateChanged(async (user) => {
       if (!user) { location.replace('index.html'); return; }
@@ -19,12 +25,26 @@
       if (!userData || userData.role !== 'client') { location.replace('index.html'); return; }
       window.session = userData;
       document.dispatchEvent(new CustomEvent('sessionReady'));
+      // Unread messages badge
+      subscribeUnreadCount(userData.id, (n) => {
+        const b = document.getElementById('client-messages-unread');
+        if (!b) return;
+        if (n > 0) { b.textContent = n > 99 ? '99+' : String(n); b.classList.add('show'); }
+        else b.classList.remove('show');
+      });
     });
     window.DB = DB;
     window.auth = auth;
     window.EmailAuthProvider = EmailAuthProvider;
     window.reauthenticateWithCredential = reauthenticateWithCredential;
     window.updatePassword = updatePassword;
+    window.PaymentModule = PaymentModule;
+    window.toast = toast;
+    window.MessagingUI = MessagingUI;
+    window.Analytics = Analytics;
+    window.Gamification = Gamification;
+    window.VideoFormCheck = VideoFormCheck;
+    window.subscribeUnreadCount = subscribeUnreadCount;
   </script>
 </head>
 <body>
@@ -40,6 +60,16 @@
     <nav class="sidebar-nav">
       <div class="nav-item active" onclick="showPage('home')" data-page="home">
         <span class="nav-icon">🏠</span> Home
+      </div>
+      <div class="nav-item" onclick="showPage('progress')" data-page="progress">
+        <span class="nav-icon">📈</span> Progress
+      </div>
+      <div class="nav-item" onclick="showPage('formcheck')" data-page="formcheck">
+        <span class="nav-icon">🎥</span> Form Check
+      </div>
+      <div class="nav-item" onclick="showPage('messages')" data-page="messages">
+        <span class="nav-icon">💬</span> Messages
+        <span class="nav-pill" id="client-messages-unread"></span>
       </div>
       <div class="nav-item" onclick="showPage('profile')" data-page="profile">
         <span class="nav-icon">👤</span> Profile
@@ -78,8 +108,11 @@
     <!-- ══ HOME ══ -->
     <div class="page active" id="page-home">
 
+      <!-- Streak banner -->
+      <div id="client-streak-banner" style="margin-bottom:16px"></div>
+
       <!-- Weight bar -->
-      <div id="weight-bar" style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:12px 16px;background:var(--surface2);border-radius:10px;flex-wrap:wrap">
+      <div id="weight-bar" style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:12px 16px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:var(--r-md);flex-wrap:wrap;backdrop-filter:blur(12px)">
         <span style="font-size:13px;color:var(--text-muted)">⚖️ Current Weight:</span>
         <span id="weight-display" style="font-weight:700;font-size:15px">— kg</span>
         <div id="weight-edit-row" style="display:none;align-items:center;gap:8px">
@@ -93,6 +126,54 @@
 
       <div id="week-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px"></div>
       <div id="week-content"></div>
+    </div>
+
+    <!-- ══ PROGRESS ══ -->
+    <div class="page" id="page-progress">
+      <div style="max-width:900px;display:flex;flex-direction:column;gap:18px">
+        <div id="client-adherence-stats"></div>
+
+        <div class="card">
+          <h2 style="font-size:15px;font-weight:700;margin-bottom:14px">⚖️ Weight Trend</h2>
+          <div style="position:relative;height:260px"><canvas id="chart-weight"></canvas></div>
+        </div>
+
+        <div class="card">
+          <h2 style="font-size:15px;font-weight:700;margin-bottom:14px">💪 Workout Volume</h2>
+          <div style="position:relative;height:260px"><canvas id="chart-volume"></canvas></div>
+        </div>
+
+        <div class="card">
+          <h2 style="font-size:15px;font-weight:700;margin-bottom:14px">🎯 Muscle Group Balance</h2>
+          <div style="position:relative;height:280px"><canvas id="chart-muscle"></canvas></div>
+        </div>
+
+        <div class="card">
+          <h2 style="font-size:15px;font-weight:700;margin-bottom:14px">🏅 Achievements</h2>
+          <div id="client-badges"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ FORM CHECK ══ -->
+    <div class="page" id="page-formcheck">
+      <div style="max-width:720px;display:flex;flex-direction:column;gap:18px">
+        <div id="vc-uploader"></div>
+        <div>
+          <h2 style="font-size:14px;font-weight:700;color:var(--text-muted);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px">📂 My Submissions</h2>
+          <div id="vc-client-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MESSAGES ══ -->
+    <div class="page" id="page-messages">
+      <div style="max-width:520px">
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border);font-weight:700;font-size:14px">💬 Messages with your coach</div>
+          <div id="client-messages-inbox" style="max-height:70vh;overflow-y:auto"></div>
+        </div>
+      </div>
     </div>
 
     <!-- ══ PROFILE ══ -->
@@ -229,8 +310,11 @@ function logout() {
 
 // ── Navigation ──
 const pageInfo = {
-  home:    ['Home',    'Your training plan'],
-  profile: ['Profile', 'Your progress & account'],
+  home:      ['Home',      'Your training plan'],
+  progress:  ['Progress',  'Trends, charts, and achievements'],
+  formcheck: ['Form Check','Upload a lift · get coach feedback'],
+  messages:  ['Messages',  'Chat with your coach'],
+  profile:   ['Profile',   'Your progress & account'],
 };
 
 function showPage(name) {
@@ -239,8 +323,39 @@ function showPage(name) {
   document.getElementById('page-' + name).classList.add('active');
   document.getElementById('page-title').textContent = pageInfo[name][0];
   document.getElementById('page-sub').textContent   = pageInfo[name][1];
-  if (name === 'home')    renderHome();
-  if (name === 'profile') renderProfile();
+  // Close mobile sidebar after navigation
+  if (window.innerWidth <= 768) {
+    document.querySelector('.sidebar')?.classList.remove('open');
+    document.querySelector('.sidebar-backdrop')?.classList.remove('open');
+  }
+  if (name === 'home')      renderHome();
+  if (name === 'profile')   renderProfile();
+  if (name === 'progress')  renderProgressPage();
+  if (name === 'formcheck') renderFormCheckPage();
+  if (name === 'messages')  renderMessagesPage();
+}
+
+// ── Progress page ──
+async function renderProgressPage() {
+  if (!window.Analytics) return;
+  await Analytics.renderAdherenceStats('client-adherence-stats', session.id);
+  await Analytics.renderWeightChart('chart-weight', session.id);
+  await Analytics.renderVolumeChart('chart-volume', session.id);
+  await Analytics.renderMuscleGroupChart('chart-muscle', session.id);
+  if (window.Gamification) Gamification.renderBadges('client-badges', session.id);
+}
+
+// ── Form Check page ──
+function renderFormCheckPage() {
+  if (!window.VideoFormCheck) return;
+  VideoFormCheck.renderUploader('vc-uploader', session.id, session.coachId);
+  VideoFormCheck.renderClientList('vc-client-list', session.id);
+}
+
+// ── Messages page ──
+function renderMessagesPage() {
+  if (!window.MessagingUI) return;
+  MessagingUI.renderInbox('client-messages-inbox', session.id);
 }
 
 // ════════════════════════════════
@@ -282,6 +397,7 @@ async function renderHome() {
   tabsEl.innerHTML    = '<span style="color:var(--text-muted);font-size:13px">Loading…</span>';
   contentEl.innerHTML = '';
   loadWeightBar(); // non-blocking
+  if (window.Gamification) Gamification.renderStreakBanner('client-streak-banner', session.id);
 
   const plans = await DB.getPlansByClient(session.id);
   currentPlan = plans.find(p => p.status === 'active') || plans[0] || null;
@@ -636,130 +752,264 @@ document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', 
 </script>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
 
-<!-- ══ CLIENT PAYMENT: CREDIT CARD ══ -->
-<div class="modal-overlay" id="modal-client-card">
-  <div class="modal" style="max-width:500px">
+<!-- ══ CLIENT PAYMENT MODAL (Multi-Method) ══ -->
+<div class="modal-overlay" id="modal-client-payment">
+  <div class="modal" style="max-width:520px">
     <div class="modal-header">
       <h2>💳 Renew Membership</h2>
-      <button class="modal-close" onclick="closeModal('modal-client-card')">×</button>
+      <button class="modal-close" onclick="closeModal('modal-client-payment')">×</button>
     </div>
-    <div class="alert alert-error" id="client-card-error"></div>
-    <div class="form-group">
-      <label>Duration</label>
-      <select id="client-card-duration">
-        <option value="1">1 Month — $29.99</option>
-        <option value="3">3 Months — $79.99</option>
-        <option value="12" selected>1 Year — $249.99</option>
+
+    <div class="alert alert-error" id="client-payment-error" style="display:none;margin-bottom:12px"></div>
+
+    <!-- Duration selector -->
+    <div class="form-group" style="margin-bottom:16px">
+      <label>Subscription Plan</label>
+      <select id="client-payment-duration" onchange="updateClientPaymentPrice()">
+        <option value="1" data-price="29.99">1 Month — $29.99</option>
+        <option value="3" data-price="79.99">3 Months — $79.99</option>
+        <option value="12" data-price="249.99" selected>1 Year — $249.99 (Best Value)</option>
       </select>
     </div>
-    <div style="background:var(--surface2);padding:16px;border-radius:10px;margin:4px 0 16px">
-      <label style="font-size:13px;color:var(--text-muted);margin-bottom:8px;display:block">Card Number</label>
-      <input type="text" id="client-card-number" placeholder="4111 1111 1111 1111" maxlength="19" />
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
-        <div>
-          <label style="font-size:13px;color:var(--text-muted);margin-bottom:4px;display:block">MM/YY</label>
-          <input type="text" id="client-card-expiry" placeholder="12/25" maxlength="5" />
-        </div>
-        <div>
-          <label style="font-size:13px;color:var(--text-muted);margin-bottom:4px;display:block">CVC</label>
-          <input type="text" id="client-card-cvc" placeholder="123" maxlength="4" />
-        </div>
-      </div>
-      <label style="font-size:13px;color:var(--text-muted);margin-top:12px;margin-bottom:4px;display:block">Cardholder Name</label>
-      <input type="text" id="client-card-name" placeholder="John Doe" />
-    </div>
-    <div style="display:flex;gap:10px;justify-content:flex-end">
-      <button class="btn btn-secondary" onclick="closeModal('modal-client-card')">Cancel</button>
-      <button class="btn btn-primary" onclick="processClientCard()">Pay Now</button>
-    </div>
-  </div>
-</div>
 
-<!-- ══ CLIENT PAYMENT: GOOGLE PAY ══ -->
-<div class="modal-overlay" id="modal-client-google">
-  <div class="modal" style="max-width:440px">
-    <div class="modal-header">
-      <h2>Google Pay</h2>
-      <button class="modal-close" onclick="closeModal('modal-client-google')">×</button>
+    <!-- Summary card -->
+    <div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border-radius:10px;padding:14px 16px;margin-bottom:16px">
+      <div style="font-size:13px;color:var(--text-muted)">Total</div>
+      <div id="client-payment-price-display" style="font-weight:700;font-size:18px;color:var(--primary)">$249.99</div>
     </div>
-    <div style="text-align:center;padding:32px 20px">
-      <div style="font-size:48px;margin-bottom:16px">🔐</div>
-      <p style="font-size:14px;margin-bottom:20px">Confirm payment with Google Pay</p>
-      <div style="background:var(--surface2);padding:16px;border-radius:10px;margin:20px 0;text-align:left">
-        <div style="display:flex;justify-content:space-between;margin-bottom:10px">
-          <span style="color:var(--text-muted)">Duration:</span>
-          <span id="client-google-duration-label" style="font-weight:600">1 Year</span>
-        </div>
-        <div style="display:flex;justify-content:space-between">
-          <span style="color:var(--text-muted)">Amount:</span>
-          <span style="font-weight:700">$<span id="client-google-amount-label">249.99</span></span>
-        </div>
-      </div>
-      <div style="display:flex;gap:10px">
-        <button class="btn btn-secondary btn-block" onclick="closeModal('modal-client-google')">Cancel</button>
-        <button class="btn btn-primary btn-block" onclick="processClientGoogle()">Confirm</button>
-      </div>
-    </div>
-  </div>
-</div>
 
-<!-- ══ CLIENT PAYMENT: PAYPAL ══ -->
-<div class="modal-overlay" id="modal-client-paypal">
-  <div class="modal" style="max-width:440px">
-    <div class="modal-header">
-      <h2><span style="color:#009cde">Pay</span><span style="filter:brightness(3);color:#012169">Pal</span></h2>
-      <button class="modal-close" onclick="closeModal('modal-client-paypal')">×</button>
-    </div>
-    <div style="text-align:center;padding:12px 0 20px">
-      <div style="font-size:52px;margin-bottom:14px">🔵</div>
-      <p style="font-size:14px;color:var(--text-muted);margin-bottom:20px">You will be securely redirected to PayPal.</p>
-      <div style="background:var(--surface2);padding:16px;border-radius:10px;text-align:left">
-        <div style="display:flex;justify-content:space-between;margin-bottom:10px">
-          <span style="color:var(--text-muted)">Duration:</span>
-          <span id="client-paypal-duration-label" style="font-weight:600">1 Year</span>
-        </div>
-        <div style="display:flex;justify-content:space-between">
-          <span style="color:var(--text-muted)">Total:</span>
-          <span style="font-weight:700;font-size:16px">$<span id="client-paypal-amount-label">249.99</span></span>
-        </div>
-      </div>
-    </div>
-    <div style="display:flex;gap:10px;justify-content:flex-end">
-      <button class="btn btn-secondary" onclick="closeModal('modal-client-paypal')">Cancel</button>
-      <button onclick="processClientPayPal()" style="background:#003087;color:#fff;border:none;border-radius:10px;padding:9px 22px;font-weight:700;font-size:14px;cursor:pointer">
-        Confirm with <span style="color:#009cde">Pay</span>Pal
+    <!-- Payment method tabs -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:0">
+      <button class="payment-tab active" id="client-tab-paypal" onclick="switchClientPaymentMethod('paypal')" style="flex:1;padding:12px;text-align:center;border:none;background:none;color:inherit;cursor:pointer;border-bottom:3px solid transparent;transition:all .2s;font-weight:600">
+        💙 PayPal
       </button>
+      <button class="payment-tab" id="client-tab-googlepay" onclick="switchClientPaymentMethod('googlepay')" style="flex:1;padding:12px;text-align:center;border:none;background:none;color:inherit;cursor:pointer;border-bottom:3px solid transparent;transition:all .2s;font-weight:600">
+        📱 Google Pay
+      </button>
+      <button class="payment-tab" id="client-tab-card" onclick="switchClientPaymentMethod('card')" style="flex:1;padding:12px;text-align:center;border:none;background:none;color:inherit;cursor:pointer;border-bottom:3px solid transparent;transition:all .2s;font-weight:600">
+        💳 Card
+      </button>
+    </div>
+
+    <!-- PayPal Wallet Button -->
+    <div id="client-payment-method-paypal" class="payment-method active">
+      <div id="client-paypal-wallet-button-container" style="min-height:50px"></div>
+    </div>
+
+    <!-- Google Pay Button -->
+    <div id="client-payment-method-googlepay" class="payment-method" style="display:none">
+      <div id="client-googlepay-button-container" style="min-height:50px"></div>
+    </div>
+
+    <!-- Credit Card Form -->
+    <div id="client-payment-method-card" class="payment-method" style="display:none">
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Card Number</label>
+        <div id="client-card-number" style="border:1px solid var(--border);border-radius:6px;padding:12px;background:var(--bg);min-height:40px;display:flex;align-items:center"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px">
+        <div class="form-group" style="margin:0">
+          <label>Expiry Date</label>
+          <div id="client-card-expiry" style="border:1px solid var(--border);border-radius:6px;padding:12px;background:var(--bg);min-height:40px;display:flex;align-items:center"></div>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>CVV</label>
+          <div id="client-card-cvv" style="border:1px solid var(--border);border-radius:6px;padding:12px;background:var(--bg);min-height:40px;display:flex;align-items:center"></div>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" id="client-card-submit-btn" onclick="submitClientCardPayment()">
+        Pay $<span id="client-card-amount-display">249.99</span>
+      </button>
+    </div>
+
+    <!-- Loading while PayPal SDK initialises -->
+    <div id="client-paypal-loading" style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;display:none">
+      Loading payment options...
+    </div>
+
+    <div style="margin-top:14px;text-align:center">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-client-payment')">Cancel</button>
     </div>
   </div>
 </div>
 
 <script>
+// ── Client Payment State ──
+let clientPaymentState = {
+  currentMethod: 'paypal',
+  paypalInitialized: false,
+  hostedFieldsInitialized: false,
+};
+
 // ── Client self-renewal helpers ──
 const CLIENT_PRICES = { '1': '29.99', '3': '79.99', '12': '249.99' };
 const CLIENT_LABELS = { '1': '1 Month', '3': '3 Months', '12': '1 Year' };
 
-function openClientPayment(method) {
+async function openClientPayment(method) {
   const dur = document.getElementById('client-renew-duration').value;
-  if (method === 'card') {
-    document.getElementById('client-card-duration').value = dur;
-    document.getElementById('client-card-number').value  = '';
-    document.getElementById('client-card-expiry').value  = '';
-    document.getElementById('client-card-cvc').value     = '';
-    document.getElementById('client-card-name').value    = '';
-    document.getElementById('client-card-error').style.display = 'none';
-    openModal('modal-client-card');
-    document.getElementById('client-card-number').focus();
-  } else if (method === 'google') {
-    document.getElementById('client-google-duration-label').textContent = CLIENT_LABELS[dur] || dur + ' Months';
-    document.getElementById('client-google-amount-label').textContent   = CLIENT_PRICES[dur] || '0.00';
-    openModal('modal-client-google');
-  } else if (method === 'paypal') {
-    document.getElementById('client-paypal-duration-label').textContent = CLIENT_LABELS[dur] || dur + ' Months';
-    document.getElementById('client-paypal-amount-label').textContent   = CLIENT_PRICES[dur] || '0.00';
-    openModal('modal-client-paypal');
+  const PAYPAL_CLIENT_ID = localStorage.getItem('paypal_client_id') || 'sb'; // 'sb' = sandbox test mode
+
+  document.getElementById('client-payment-duration').value = dur;
+  document.getElementById('client-payment-error').style.display = 'none';
+  updateClientPaymentPrice();
+
+  openModal('modal-client-payment');
+
+  // Show loading while SDK loads
+  document.getElementById('client-paypal-loading').style.display = 'block';
+
+  try {
+    // Initialize PayPal SDK
+    await window.PaymentModule.initPayPal(PAYPAL_CLIENT_ID);
+    document.getElementById('client-paypal-loading').style.display = 'none';
+    clientPaymentState.paypalInitialized = true;
+
+    // Render payment buttons
+    await renderClientPayPalWalletButton();
+    await renderClientGooglePayButton();
+    await initializeClientCardForm();
+
+    // Show the first tab (PayPal) by default
+    switchClientPaymentMethod('paypal');
+  } catch (err) {
+    document.getElementById('client-paypal-loading').style.display = 'none';
+    document.getElementById('client-payment-error').textContent = 'Failed to load payment system. Check your internet connection.';
+    document.getElementById('client-payment-error').style.display = 'block';
+    console.error('Payment init error:', err);
   }
 }
 
+// Render PayPal Wallet button for client
+async function renderClientPayPalWalletButton() {
+  try {
+    await window.PaymentModule.renderPayPalWalletButton('client-paypal-wallet-button-container', {
+      get amount() {
+        const sel = document.getElementById('client-payment-duration');
+        return sel.options[sel.selectedIndex].getAttribute('data-price');
+      },
+      get duration() {
+        return document.getElementById('client-payment-duration').value;
+      },
+      memberId: session.id,
+      memberName: session.name,
+      onSuccess: (result) => handleClientPaymentSuccess(result),
+      onError: (msg) => handleClientPaymentError(msg),
+    });
+  } catch (err) {
+    console.error('PayPal Wallet button error:', err);
+    document.getElementById('client-payment-error').textContent = 'Failed to load PayPal button.';
+    document.getElementById('client-payment-error').style.display = 'block';
+  }
+}
+
+// Render Google Pay button for client
+async function renderClientGooglePayButton() {
+  try {
+    await window.PaymentModule.renderGooglePayButton('client-googlepay-button-container', {
+      get amount() {
+        const sel = document.getElementById('client-payment-duration');
+        return sel.options[sel.selectedIndex].getAttribute('data-price');
+      },
+      get duration() {
+        return document.getElementById('client-payment-duration').value;
+      },
+      memberId: session.id,
+      memberName: session.name,
+      onSuccess: (result) => handleClientPaymentSuccess(result),
+      onError: (msg) => handleClientPaymentError(msg),
+    });
+  } catch (err) {
+    console.error('Google Pay button error:', err);
+    document.getElementById('client-googlepay-button-container').innerHTML =
+      '<p style="text-align:center;color:var(--text-muted);font-size:13px">Google Pay not available on this device</p>';
+  }
+}
+
+// Initialize card form for client
+async function initializeClientCardForm() {
+  try {
+    await window.PaymentModule.initHostedFields('client-card-form', {
+      get amount() {
+        const sel = document.getElementById('client-payment-duration');
+        return sel.options[sel.selectedIndex].getAttribute('data-price');
+      },
+      get duration() {
+        return document.getElementById('client-payment-duration').value;
+      },
+      memberId: session.id,
+      memberName: session.name,
+      onSuccess: (result) => handleClientPaymentSuccess(result),
+      onError: (msg) => handleClientPaymentError(msg),
+    });
+    clientPaymentState.hostedFieldsInitialized = true;
+    updateClientCardAmountDisplay();
+  } catch (err) {
+    console.error('Card form init error:', err);
+    document.getElementById('client-payment-error').textContent = 'Failed to initialize card form.';
+    document.getElementById('client-payment-error').style.display = 'block';
+  }
+}
+
+// Switch between payment methods for client
+function switchClientPaymentMethod(method) {
+  clientPaymentState.currentMethod = method;
+
+  // Hide all methods
+  document.getElementById('client-payment-method-paypal').style.display = 'none';
+  document.getElementById('client-payment-method-googlepay').style.display = 'none';
+  document.getElementById('client-payment-method-card').style.display = 'none';
+
+  // Remove active class from all tabs
+  document.getElementById('client-tab-paypal').classList.remove('active');
+  document.getElementById('client-tab-googlepay').classList.remove('active');
+  document.getElementById('client-tab-card').classList.remove('active');
+
+  // Show selected method and mark tab as active
+  const methodEl = document.getElementById('client-payment-method-' + method);
+  const tabEl = document.getElementById('client-tab-' + method);
+  if (methodEl) methodEl.style.display = 'block';
+  if (tabEl) tabEl.classList.add('active');
+}
+
+// Handle client payment success
+async function handleClientPaymentSuccess(result) {
+  const duration = document.getElementById('client-payment-duration').value;
+  closeModal('modal-client-payment');
+  alert(`✅ Payment Successful!\n\nMembership extended by ${duration} month(s).\nNew expiry: ${result.newExpiry || 'updated'}`);
+  await applyClientRenewal(duration);
+}
+
+// Handle client payment error
+function handleClientPaymentError(msg) {
+  if (msg === 'Payment cancelled.') return; // Ignore cancel
+  document.getElementById('client-payment-error').textContent = msg;
+  document.getElementById('client-payment-error').style.display = 'block';
+}
+
+// Submit card payment (called by card form button)
+async function submitClientCardPayment() {
+  // The actual submission is handled by PaymentModule.initHostedFields
+}
+
+// Update price display when duration changes
+function updateClientPaymentPrice() {
+  const sel = document.getElementById('client-payment-duration');
+  if (!sel) return;
+  const price = sel.options[sel.selectedIndex].getAttribute('data-price') || '0.00';
+  const priceEl = document.getElementById('client-payment-price-display');
+  if (priceEl) priceEl.textContent = `$${price}`;
+  updateClientCardAmountDisplay();
+}
+
+// Update card form amount display
+function updateClientCardAmountDisplay() {
+  const sel = document.getElementById('client-payment-duration');
+  const price = sel.options[sel.selectedIndex].getAttribute('data-price') || '0.00';
+  const cardAmountEl = document.getElementById('client-card-amount-display');
+  if (cardAmountEl) cardAmountEl.textContent = price;
+}
+
+// Apply renewal to client membership
 async function applyClientRenewal(duration) {
   const user = await DB.getUserById(session.id);
   const base = user.membershipExpiry && new Date(user.membershipExpiry) > new Date()
@@ -769,41 +1019,6 @@ async function applyClientRenewal(duration) {
   const banner = document.getElementById('expired-banner');
   if (banner) banner.style.display = 'none';
   renderProfile();
-}
-
-function processClientCard() {
-  const cardNum  = document.getElementById('client-card-number').value.replace(/\s/g, '');
-  const expiry   = document.getElementById('client-card-expiry').value;
-  const cvc      = document.getElementById('client-card-cvc').value;
-  const name     = document.getElementById('client-card-name').value;
-  const duration = document.getElementById('client-card-duration').value;
-  const errEl    = document.getElementById('client-card-error');
-
-  if (!cardNum || cardNum.length < 13) { errEl.textContent = 'Invalid card number.'; errEl.style.display = 'block'; return; }
-  if (!expiry  || !expiry.match(/^\d{2}\/\d{2}$/)) { errEl.textContent = 'Invalid expiry. Use MM/YY.'; errEl.style.display = 'block'; return; }
-  if (!cvc     || cvc.length < 3) { errEl.textContent = 'Invalid CVC.'; errEl.style.display = 'block'; return; }
-  if (!name) { errEl.textContent = 'Please enter cardholder name.'; errEl.style.display = 'block'; return; }
-
-  const amount = CLIENT_PRICES[duration] || '0.00';
-  alert(`✅ Payment Processed!\n\nCard: ****${cardNum.slice(-4)}\nAmount: $${amount}\n\nYour membership has been renewed!`);
-  applyClientRenewal(duration);
-  closeModal('modal-client-card');
-}
-
-function processClientGoogle() {
-  const dur    = document.getElementById('client-google-duration-label').textContent;
-  const months = Object.entries(CLIENT_LABELS).find(([k,v]) => v === dur)?.[0] || '1';
-  alert('✅ Google Pay Payment Processed!\n\nYour membership has been renewed!');
-  applyClientRenewal(months);
-  closeModal('modal-client-google');
-}
-
-function processClientPayPal() {
-  const dur    = document.getElementById('client-paypal-duration-label').textContent;
-  const months = Object.entries(CLIENT_LABELS).find(([k,v]) => v === dur)?.[0] || '1';
-  alert('✅ PayPal Payment Processed!\n\nYour membership has been renewed!');
-  applyClientRenewal(months);
-  closeModal('modal-client-paypal');
 }
 </script>
 </body>

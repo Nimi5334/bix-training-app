@@ -6,12 +6,19 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <title>Coach Dashboard</title>
-  <meta name="app-version" content="20260416-v2" />
-  <link rel="stylesheet" href="style.css?v=20260416" />
-  <style>html{background:#0f0f0f}</style>
+  <title>Coach Dashboard · Bix</title>
+  <meta name="app-version" content="20260423-v3" />
+  <link rel="stylesheet" href="style.css?v=20260423" />
+  <style>html{background:#0a0a0f}</style>
   <script type="module">
     import { DB, auth } from './db-firebase.js';
+    import * as PaymentModule from './payment-paypal.js';
+    import { toast } from './toast.js';
+    import { MessagingUI, subscribeUnreadCount } from './messaging.js';
+    import { Analytics } from './analytics.js';
+    import { Gamification } from './gamification.js';
+    import { VideoFormCheck } from './video-form-check.js';
+    import { Onboarding } from './onboarding.js';
     // Auth guard: redirect if not logged in or not coach/admin
     auth.onAuthStateChanged(async (user) => {
       if (!user) {
@@ -23,14 +30,29 @@
         location.replace('index.html');
         return;
       }
-      // Set session to Firestore user data so session.id matches Firestore doc IDs
       window.session = userData;
-      // Signal main script that session is ready
       document.dispatchEvent(new CustomEvent('sessionReady'));
+      // Show onboarding on first login (non-blocking)
+      setTimeout(() => Onboarding.maybeShow(userData.id), 400);
+      // Wire messages unread badge
+      subscribeUnreadCount(userData.id, (n) => {
+        const b = document.getElementById('messages-unread-badge');
+        if (!b) return;
+        if (n > 0) { b.textContent = n > 99 ? '99+' : String(n); b.classList.add('show'); }
+        else b.classList.remove('show');
+      });
     });
-    // Make DB available globally
+    // Make globals available to legacy non-module scripts
     window.DB = DB;
     window.auth = auth;
+    window.PaymentModule = PaymentModule;
+    window.toast = toast;
+    window.MessagingUI = MessagingUI;
+    window.Analytics = Analytics;
+    window.Gamification = Gamification;
+    window.VideoFormCheck = VideoFormCheck;
+    window.Onboarding = Onboarding;
+    window.subscribeUnreadCount = subscribeUnreadCount;
   </script>
   <style>
     .member-card {
@@ -81,6 +103,16 @@
       <div class="nav-item active" onclick="showPage('members')" data-page="members">
         <span class="nav-icon">👥</span> Members
       </div>
+      <div class="nav-item" onclick="showPage('messages')" data-page="messages" style="position:relative">
+        <span class="nav-icon">💬</span> Messages
+        <span id="messages-unread-badge" style="display:none;position:absolute;right:14px;top:50%;transform:translateY(-50%);background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;min-width:18px;text-align:center"></span>
+      </div>
+      <div class="nav-item" onclick="showPage('formcheck')" data-page="formcheck">
+        <span class="nav-icon">🎥</span> Form Check
+      </div>
+      <div class="nav-item" onclick="showPage('leaderboard')" data-page="leaderboard">
+        <span class="nav-icon">🏆</span> Leaderboard
+      </div>
       <div class="nav-item" onclick="showPage('billing')" data-page="billing">
         <span class="nav-icon">💳</span> Billing
       </div>
@@ -115,7 +147,23 @@
 
     <!-- ══ MEMBERS ══ -->
     <div class="page active" id="page-members">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:20px">
+
+      <!-- Daily Insight banner (AI / psychology-driven nudge) -->
+      <div id="daily-insight-host"></div>
+
+      <!-- KPI snapshot (roster health at a glance) -->
+      <div class="kpi-grid" id="coach-kpi-grid">
+        <div class="kpi-tile kpi-green"><div class="kpi-value" id="kpi-active">0</div><div class="kpi-label">Active</div></div>
+        <div class="kpi-tile kpi-amber"><div class="kpi-value" id="kpi-risk">0</div><div class="kpi-label">At Risk</div></div>
+        <div class="kpi-tile kpi-red"><div class="kpi-value" id="kpi-expired">0</div><div class="kpi-label">Expired</div></div>
+        <div class="kpi-tile kpi-accent"><div class="kpi-value" id="kpi-reviews">0</div><div class="kpi-label">Reviews Waiting</div></div>
+      </div>
+
+      <!-- Retention Radar (at-risk alerts with one-tap actions) -->
+      <div id="retention-radar-host"></div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0 20px">
+        <h2 style="font-size:16px;font-weight:700">Roster</h2>
         <button class="btn btn-primary btn-sm" onclick="openAddMember()">+ Add Member</button>
       </div>
 
@@ -127,10 +175,41 @@
       </div>
 
       <!-- Expired -->
-      <div class="section-divider" style="color:#e74c3c;margin-top:32px">⛔ Expired Memberships <span id="expired-count" style="color:var(--text-muted)"></span></div>
+      <div class="section-divider" style="color:var(--red);margin-top:32px">⛔ Expired Memberships <span id="expired-count" style="color:var(--text-muted)"></span></div>
       <div id="expired-members-list"></div>
       <div class="empty-state" id="expired-empty" style="display:none;padding:24px 0">
         <p>No expired memberships.</p>
+      </div>
+    </div>
+
+    <!-- ══ MESSAGES ══ -->
+    <div class="page" id="page-messages">
+      <div style="display:grid;grid-template-columns:minmax(280px,340px) 1fr;gap:20px;max-width:1100px;align-items:start">
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border);font-weight:700;font-size:14px">Conversations</div>
+          <div id="messages-inbox" style="max-height:70vh;overflow-y:auto"></div>
+        </div>
+        <div class="card" style="text-align:center;padding:40px 20px;color:var(--text-muted)">
+          <div style="font-size:42px;margin-bottom:12px">💬</div>
+          <h3 style="font-size:15px;font-weight:700;margin-bottom:6px">Select a conversation</h3>
+          <p style="font-size:13px">Click a client on the left to open a chat.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ FORM CHECK (Coach Review Queue) ══ -->
+    <div class="page" id="page-formcheck">
+      <div style="max-width:800px">
+        <div class="section-divider">📥 Pending Reviews</div>
+        <div id="vc-coach-list"></div>
+      </div>
+    </div>
+
+    <!-- ══ LEADERBOARD ══ -->
+    <div class="page" id="page-leaderboard">
+      <div style="max-width:720px">
+        <div class="section-divider">🏆 Client Leaderboard · Ranked by Total Workouts</div>
+        <div id="coach-leaderboard"></div>
       </div>
     </div>
 
@@ -152,16 +231,10 @@
         </div>
         <!-- Payment panel — hidden until clicked -->
         <div id="billing-payment-panel" style="display:none;padding:0 22px 20px;border-top:1px solid var(--border)">
-          <p style="font-size:12px;color:var(--text-muted);margin:14px 0 12px">Choose a payment method to renew:</p>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-            <button class="btn btn-primary" onclick="openCoachPayment('card')">💳 Credit Card</button>
-            <button onclick="openCoachPayment('google')" style="background:#1a1a1a;color:#fff;border:2px solid #4285f4;border-radius:10px;padding:9px 12px;font-weight:700;font-size:13px;cursor:pointer">
-              <span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span> Pay
-            </button>
-            <button onclick="openCoachPayment('paypal')" style="background:#003087;color:#fff;border:none;border-radius:10px;padding:9px 12px;font-weight:700;font-size:13px;cursor:pointer">
-              <span style="color:#009cde">Pay</span><span style="color:#fff">Pal</span>
-            </button>
-          </div>
+          <p style="font-size:12px;color:var(--text-muted);margin:14px 0 12px">Renew your membership securely via PayPal:</p>
+          <button class="btn btn-primary btn-block" onclick="openCoachPayment()" style="font-size:14px;padding:11px">
+            💳 Renew Membership
+          </button>
         </div>
       </div>
 
@@ -299,102 +372,111 @@
   </div>
 </div>
 
-<!-- ══ PAYMENT: CREDIT CARD MODAL ══ -->
+<!-- ══ PAYMENT MODAL (Multi-Method) ══ -->
 <div class="modal-overlay" id="modal-payment-card">
-  <div class="modal" style="max-width:500px">
+  <div class="modal" style="max-width:520px">
     <div class="modal-header">
-      <h2>Credit Card Payment</h2>
+      <h2>💳 Renew Membership</h2>
       <button class="modal-close" onclick="closeModal('modal-payment-card')">×</button>
     </div>
-    <div class="alert alert-error" id="payment-card-error"></div>
+
+    <div class="alert alert-error" id="payment-card-error" style="display:none;margin-bottom:12px"></div>
 
     <input type="hidden" id="payment-member-id" />
 
-    <div class="form-group">
-      <label>Member</label>
-      <input type="text" id="payment-member-name" disabled />
+    <!-- Member info row -->
+    <div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border-radius:10px;padding:14px 16px;margin-bottom:16px">
+      <div>
+        <div style="font-size:12px;color:var(--text-muted)">Member</div>
+        <div id="payment-member-name-display" style="font-weight:700;font-size:15px"></div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:12px;color:var(--text-muted)">Total</div>
+        <div id="payment-price-display" style="font-weight:700;font-size:18px;color:var(--primary)">$249.99</div>
+      </div>
     </div>
 
-    <div class="form-group">
-      <label>Amount ($)</label>
-      <input type="number" id="payment-amount" placeholder="100.00" min="1" step="0.01" />
-    </div>
-
-    <div class="form-group">
-      <label>Renewal Duration</label>
-      <select id="payment-duration">
-        <option value="1">1 Month</option>
-        <option value="3">3 Months</option>
-        <option value="12" selected>1 Year</option>
+    <!-- Duration selector -->
+    <div class="form-group" style="margin-bottom:16px">
+      <label>Subscription Plan</label>
+      <select id="payment-duration" onchange="updatePaymentPrice()">
+        <option value="1" data-price="29.99">1 Month — $29.99</option>
+        <option value="3" data-price="79.99">3 Months — $79.99</option>
+        <option value="12" data-price="249.99" selected>1 Year — $249.99 (Best Value)</option>
       </select>
     </div>
 
-    <div style="background:var(--surface2);padding:16px;border-radius:10px;margin:16px 0">
-      <label style="font-size:13px;color:var(--text-muted);margin-bottom:8px;display:block">Card Number</label>
-      <input type="text" id="payment-card-number" placeholder="4111 1111 1111 1111" maxlength="19" />
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
-        <div>
-          <label style="font-size:13px;color:var(--text-muted);margin-bottom:4px;display:block">MM/YY</label>
-          <input type="text" id="payment-expiry" placeholder="12/25" maxlength="5" />
-        </div>
-        <div>
-          <label style="font-size:13px;color:var(--text-muted);margin-bottom:4px;display:block">CVC</label>
-          <input type="text" id="payment-cvc" placeholder="123" maxlength="4" />
-        </div>
-      </div>
-
-      <label style="font-size:13px;color:var(--text-muted);margin-top:12px;margin-bottom:4px;display:block">Cardholder Name</label>
-      <input type="text" id="payment-name" placeholder="John Doe" />
+    <!-- Payment method tabs -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:0">
+      <button class="payment-tab active" id="tab-paypal" onclick="switchPaymentMethod('paypal')" style="flex:1;padding:12px;text-align:center;border:none;background:none;color:inherit;cursor:pointer;border-bottom:3px solid transparent;transition:all .2s;font-weight:600">
+        💙 PayPal
+      </button>
+      <button class="payment-tab" id="tab-googlepay" onclick="switchPaymentMethod('googlepay')" style="flex:1;padding:12px;text-align:center;border:none;background:none;color:inherit;cursor:pointer;border-bottom:3px solid transparent;transition:all .2s;font-weight:600">
+        📱 Google Pay
+      </button>
+      <button class="payment-tab" id="tab-card" onclick="switchPaymentMethod('card')" style="flex:1;padding:12px;text-align:center;border:none;background:none;color:inherit;cursor:pointer;border-bottom:3px solid transparent;transition:all .2s;font-weight:600">
+        💳 Card
+      </button>
     </div>
 
-    <div style="display:flex;gap:10px;justify-content:flex-end">
-      <button class="btn btn-secondary" onclick="closeModal('modal-payment-card')">Cancel</button>
-      <button class="btn btn-primary" onclick="processCardPayment()">Pay Now</button>
+    <!-- PayPal Wallet Button -->
+    <div id="payment-method-paypal" class="payment-method active">
+      <div id="paypal-wallet-button-container" style="min-height:50px"></div>
+    </div>
+
+    <!-- Google Pay Button -->
+    <div id="payment-method-googlepay" class="payment-method" style="display:none">
+      <div id="googlepay-button-container" style="min-height:50px"></div>
+    </div>
+
+    <!-- Credit Card Form -->
+    <div id="payment-method-card" class="payment-method" style="display:none">
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Card Number</label>
+        <div id="card-number" style="border:1px solid var(--border);border-radius:6px;padding:12px;background:var(--bg);min-height:40px;display:flex;align-items:center"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px">
+        <div class="form-group" style="margin:0">
+          <label>Expiry Date</label>
+          <div id="card-expiry" style="border:1px solid var(--border);border-radius:6px;padding:12px;background:var(--bg);min-height:40px;display:flex;align-items:center"></div>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>CVV</label>
+          <div id="card-cvv" style="border:1px solid var(--border);border-radius:6px;padding:12px;background:var(--bg);min-height:40px;display:flex;align-items:center"></div>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" id="card-submit-btn" onclick="submitCardPayment()">
+        Pay $<span id="card-amount-display">249.99</span>
+      </button>
+    </div>
+
+    <!-- Loading while PayPal SDK initialises -->
+    <div id="paypal-loading" style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;display:none">
+      Loading payment options...
+    </div>
+
+    <div style="margin-top:14px;text-align:center">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-payment-card')">Cancel</button>
     </div>
   </div>
 </div>
 
-<!-- ══ PAYMENT: GOOGLE PAY MODAL ══ -->
-<div class="modal-overlay" id="modal-payment-google">
-  <div class="modal" style="max-width:480px">
-    <div class="modal-header">
-      <h2>Google Pay</h2>
-      <button class="modal-close" onclick="closeModal('modal-payment-google')">×</button>
-    </div>
-
-    <input type="hidden" id="payment-google-member-id" />
-    <input type="hidden" id="payment-google-amount" />
-    <input type="hidden" id="payment-google-duration" />
-
-    <div style="text-align:center;padding:32px 20px">
-      <div style="font-size:48px;margin-bottom:16px">🔐</div>
-      <p style="font-size:14px;margin-bottom:20px">Confirm payment with Google Pay</p>
-
-      <div style="background:var(--surface2);padding:16px;border-radius:10px;margin:20px 0;text-align:left">
-        <div style="display:flex;justify-content:space-between;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">
-          <span style="color:var(--text-muted)">Member:</span>
-          <span id="payment-google-member-name" style="font-weight:600"></span>
-        </div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">
-          <span style="color:var(--text-muted)">Amount:</span>
-          <span style="font-weight:600">$<span id="payment-google-display-amount">0.00</span></span>
-        </div>
-        <div style="display:flex;justify-content:space-between">
-          <span style="color:var(--text-muted)">Duration:</span>
-          <span id="payment-google-display-duration" style="font-weight:600">1 Month</span>
-        </div>
-      </div>
-
-      <p style="font-size:12px;color:var(--text-muted);margin-bottom:20px">You will be redirected to Google Pay to complete this transaction.</p>
-
-      <div style="display:flex;gap:10px">
-        <button class="btn btn-secondary btn-block" onclick="closeModal('modal-payment-google')">Cancel</button>
-        <button class="btn btn-primary btn-block" onclick="processGooglePayment()">Confirm</button>
-      </div>
-    </div>
-  </div>
-</div>
+<style>
+.payment-tab {
+  color: var(--text-muted) !important;
+}
+.payment-tab.active {
+  color: var(--primary) !important;
+  border-bottom-color: var(--primary) !important;
+}
+.payment-method {
+  animation: fadeIn 0.2s ease-in;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+</style>
 
 <!-- ══ COACH EXPIRED OVERLAY ══ -->
 <div id="coach-expired-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.93);z-index:500;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center">
@@ -403,54 +485,9 @@
   <p style="font-size:14px;color:#aaa;margin-bottom:32px;max-width:420px;line-height:1.6">
     Your BIX coach subscription has expired.<br/>Renew below to regain full access.
   </p>
-  <div style="display:flex;flex-direction:column;gap:12px;width:100%;max-width:340px">
-    <button class="btn btn-primary btn-block" style="font-size:15px;padding:12px" onclick="openCoachPayment('card')">💳 Pay with Credit Card</button>
-    <button onclick="openCoachPayment('google')" style="background:#1a1a1a;color:#fff;border:2px solid #4285f4;border-radius:10px;padding:12px 18px;font-weight:700;font-size:15px;cursor:pointer;width:100%">
-      <span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span>&nbsp;Pay
-    </button>
-    <button onclick="openCoachPayment('paypal')" style="background:#003087;color:#fff;border:none;border-radius:10px;padding:12px 18px;font-weight:700;font-size:15px;cursor:pointer;width:100%">
-      <span style="color:#009cde">Pay</span><span style="color:#fff">Pal</span>
-    </button>
-  </div>
-</div>
-
-<!-- ══ PAYMENT: PAYPAL MODAL ══ -->
-<div class="modal-overlay" id="modal-payment-paypal">
-  <div class="modal" style="max-width:480px">
-    <div class="modal-header">
-      <h2><span style="color:#009cde">Pay</span><span style="color:#012169; filter:brightness(3)">Pal</span></h2>
-      <button class="modal-close" onclick="closeModal('modal-payment-paypal')">×</button>
-    </div>
-    <input type="hidden" id="payment-paypal-target-id" />
-    <div style="text-align:center;padding:12px 0 20px">
-      <div style="font-size:52px;margin-bottom:14px">🔵</div>
-      <p style="font-size:14px;color:var(--text-muted);margin-bottom:20px">You will be securely redirected to PayPal to complete payment.</p>
-      <div class="form-group" style="text-align:left">
-        <label>Duration</label>
-        <select id="paypal-duration" onchange="updatePaypalDisplay()">
-          <option value="1">1 Month — $29.99</option>
-          <option value="3">3 Months — $79.99</option>
-          <option value="12" selected>1 Year — $249.99</option>
-        </select>
-      </div>
-      <div style="background:var(--surface2);padding:16px;border-radius:10px;text-align:left">
-        <div style="display:flex;justify-content:space-between;margin-bottom:10px">
-          <span style="color:var(--text-muted)">Plan</span>
-          <span id="paypal-plan-label" style="font-weight:600">1 Year</span>
-        </div>
-        <div style="display:flex;justify-content:space-between">
-          <span style="color:var(--text-muted)">Total</span>
-          <span style="font-weight:700;font-size:16px">$<span id="paypal-amount-display">249.99</span></span>
-        </div>
-      </div>
-    </div>
-    <div style="display:flex;gap:10px;justify-content:flex-end">
-      <button class="btn btn-secondary" onclick="closeModal('modal-payment-paypal')">Cancel</button>
-      <button onclick="processPayPalPayment()" style="background:#003087;color:#fff;border:none;border-radius:10px;padding:9px 22px;font-weight:700;font-size:14px;cursor:pointer">
-        Confirm with <span style="color:#009cde">Pay</span>Pal
-      </button>
-    </div>
-  </div>
+  <button class="btn btn-primary" style="font-size:16px;padding:14px 36px" onclick="openCoachPayment()">
+    💳 Renew Membership
+  </button>
 </div>
 
 <script>
@@ -495,9 +532,12 @@ function logout() {
 let pageInfo = {};
 function initPageInfo() {
   pageInfo = {
-    members:  ['Members',   'Manage active & expired memberships'],
-    billing:  ['Billing',   'Renew member memberships'],
-    settings: ['Settings',  'Customize your dashboard appearance'],
+    members:     ['Members',     'Manage active & expired memberships'],
+    messages:    ['Messages',    'Chat with your clients in real time'],
+    formcheck:   ['Form Check',  'Review video submissions & send feedback'],
+    leaderboard: ['Leaderboard', 'Your clients ranked by workout volume'],
+    billing:     ['Billing',     'Renew member memberships'],
+    settings:    ['Settings',    'Customize your dashboard appearance'],
   };
 }
 function showPage(name) {
@@ -506,9 +546,12 @@ function showPage(name) {
   document.getElementById('page-' + name).classList.add('active');
   document.getElementById('page-title').textContent = pageInfo[name][0];
   document.getElementById('page-sub').textContent   = pageInfo[name][1];
-  if (name === 'members')  renderMembers();
-  if (name === 'billing')  renderBilling();
-  if (name === 'settings') loadCoachSettings();
+  if (name === 'members')     renderMembers();
+  if (name === 'billing')     renderBilling();
+  if (name === 'settings')    loadCoachSettings();
+  if (name === 'messages')    window.MessagingUI?.renderInbox('messages-inbox', session.id);
+  if (name === 'formcheck')   window.VideoFormCheck?.renderCoachQueue('vc-coach-list', session.id);
+  if (name === 'leaderboard') window.Gamification?.renderCoachLeaderboard('coach-leaderboard', session.id);
 }
 
 // ── Modals ──
@@ -553,6 +596,130 @@ async function renderMembers() {
 
   await renderMemberList('active-members-list',  'active-empty',  active,  true);
   await renderMemberList('expired-members-list', 'expired-empty', expired, false);
+
+  // Enhanced: KPI tiles + Daily Insight + Retention Radar
+  await renderCoachKPIs(clients, active, expired);
+  await renderRetentionRadar(clients);
+}
+
+// Compute silence days since last workout
+async function _silenceDays(clientId) {
+  try {
+    const logs = await DB.getWorkoutLogsByClient(clientId);
+    if (!logs.length) return Infinity;
+    const latest = logs.map(l => new Date(l.date)).sort((a,b) => b - a)[0];
+    return Math.floor((Date.now() - latest.getTime()) / 86400000);
+  } catch { return Infinity; }
+}
+
+function _daysUntil(isoDate) {
+  if (!isoDate) return Infinity;
+  return Math.ceil((new Date(isoDate).getTime() - Date.now()) / 86400000);
+}
+
+async function renderCoachKPIs(clients, active, expired) {
+  // Count at-risk (active but silent 3+ days OR expiring within 7 days)
+  const risks = [];
+  for (const c of active) {
+    const sd = await _silenceDays(c.id);
+    const expIn = _daysUntil(c.membershipExpiry);
+    if (sd >= 3 || (expIn >= 0 && expIn <= 7)) risks.push(c);
+  }
+  // Pending video reviews
+  let reviewsWaiting = 0;
+  try {
+    const videos = await DB.getVideoReviewsByCoach(session.id);
+    reviewsWaiting = videos.filter(v => v.status === 'pending').length;
+  } catch {}
+
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('kpi-active',   active.length);
+  set('kpi-risk',     risks.length);
+  set('kpi-expired',  expired.length);
+  set('kpi-reviews',  reviewsWaiting);
+
+  // Daily insight (psychology: loss-aversion framing + specific stat)
+  await renderDailyInsight(active, risks, reviewsWaiting);
+}
+
+async function renderDailyInsight(active, risks, reviewsWaiting) {
+  const host = document.getElementById('daily-insight-host');
+  if (!host) return;
+  const hhmm = new Date().toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+  let copy, cta, action;
+  if (risks.length >= 3) {
+    copy = `${risks.length} clients haven't logged in 5+ days. A quick nudge today recovers 78% of them.`;
+    cta  = 'Send check-ins →';
+    action = `document.querySelector('#retention-radar-host').scrollIntoView({behavior:'smooth'})`;
+  } else if (reviewsWaiting >= 2) {
+    copy = `${reviewsWaiting} form-check videos waiting. Fast feedback doubles client retention in the first 90 days.`;
+    cta  = 'Review now →';
+    action = `showPage('formcheck')`;
+  } else if (active.length < 5) {
+    copy = `You have room to grow. Coaches who add 1 client/week hit $5K MRR in 14 weeks on average.`;
+    cta  = 'Add a member →';
+    action = `openAddMember()`;
+  } else {
+    copy = `Your roster looks healthy. Consider celebrating this week's PRs — recognition raises adherence 34%.`;
+    cta  = 'Open leaderboard →';
+    action = `showPage('leaderboard')`;
+  }
+  host.innerHTML = `
+    <div class="insight-banner">
+      <div class="insight-icon">✨</div>
+      <div style="flex:1;min-width:0">
+        <div class="insight-eyebrow">Daily Insight · ${hhmm}</div>
+        <div class="insight-copy">${copy}</div>
+        <button class="insight-cta" onclick="${action}">${cta}</button>
+      </div>
+    </div>
+  `;
+}
+
+async function renderRetentionRadar(clients) {
+  const host = document.getElementById('retention-radar-host');
+  if (!host) return;
+  const alerts = [];
+  for (const c of clients) {
+    if (!DB.isMembershipActive(c)) continue;
+    const sd = await _silenceDays(c.id);
+    const expIn = _daysUntil(c.membershipExpiry);
+    if (expIn >= 0 && expIn <= 7) {
+      alerts.push({ kind:'red', icon:'📅', title:c.name, sub:`Membership expires in ${expIn} day${expIn===1?'':'s'}`, label:'Renew', action:`openEditMember('${c.id}')` });
+    } else if (sd >= 3 && sd !== Infinity) {
+      alerts.push({ kind:'amber', icon:'⏳', title:c.name, sub:`${sd} days silent · last workout ${sd} day${sd===1?'':'s'} ago`, label:'Message', action:`MessagingUI.openChat(session.id,'${c.id}','${c.name.replace(/'/g,"\\'")}')` });
+    } else if (sd === Infinity) {
+      alerts.push({ kind:'amber', icon:'👋', title:c.name, sub:`No workouts logged yet — welcome them in`, label:'Message', action:`MessagingUI.openChat(session.id,'${c.id}','${c.name.replace(/'/g,"\\'")}')` });
+    }
+  }
+  // Add PR celebrations (clients with 10+ streak = milestone worth celebrating)
+  for (const c of clients.slice(0, 6)) {
+    try {
+      const s = await DB.computeClientStreak(c.id);
+      if (s.current >= 7) {
+        alerts.push({ kind:'green', icon:'🏆', title:c.name, sub:`Hit ${s.current}-day streak!`, label:'Celebrate', action:`MessagingUI.openChat(session.id,'${c.id}','${c.name.replace(/'/g,"\\'")}')` });
+      }
+    } catch {}
+  }
+
+  if (!alerts.length) {
+    host.innerHTML = '';
+    return;
+  }
+
+  host.innerHTML = `
+    <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:1.5px;margin:4px 0 10px">🎯 RETENTION RADAR</div>
+    ${alerts.slice(0, 6).map((a, i) => `
+      <div class="alert-row ${a.kind}" style="animation-delay:${i*80}ms">
+        <div class="alert-icon">${a.icon}</div>
+        <div style="flex:1;min-width:0">
+          <div class="alert-title">${a.title}</div>
+          <div class="alert-sub">${a.sub}</div>
+        </div>
+        <button class="alert-btn" onclick="${a.action}">${a.label}</button>
+      </div>
+    `).join('')}
+  `;
 }
 
 async function renderMemberList(listId, emptyId, clients, isActive) {
@@ -1070,140 +1237,197 @@ function toggleBillingPanel() {
   chevron.style.transform      = open ? ''     : 'rotate(90deg)';
 }
 
-function openCoachPayment(method) {
-  openPaymentForm(session.id, session.name, method);
+// ── Payment State ──
+let paymentState = {
+  currentMethod: 'paypal',
+  paypalInitialized: false,
+  hostedFieldsInitialized: false,
+};
+
+// Unified entry point — all payment buttons call this
+function openCoachPayment() {
+  openPaymentForm(session.id, session.name);
 }
 
-function openPaymentForm(memberId, memberName, method) {
-  if (method === 'card') {
-    document.getElementById('payment-member-id').value = memberId;
-    document.getElementById('payment-member-name').value = memberName;
-    document.getElementById('payment-amount').value = '99.99';
-    document.getElementById('payment-card-number').value = '';
-    document.getElementById('payment-expiry').value = '';
-    document.getElementById('payment-cvc').value = '';
-    document.getElementById('payment-name').value = '';
-    document.getElementById('payment-card-error').style.display = 'none';
-    openModal('modal-payment-card');
-    document.getElementById('payment-card-number').focus();
-  } else if (method === 'google') {
-    document.getElementById('payment-google-member-id').value = memberId;
-    document.getElementById('payment-google-member-name').textContent = memberName;
-    document.getElementById('payment-google-amount').value = '99.99';
-    document.getElementById('payment-google-duration').value = '12';
-    document.getElementById('payment-google-display-amount').textContent = '99.99';
-    document.getElementById('payment-google-display-duration').textContent = '1 Year';
-    openModal('modal-payment-google');
-  } else if (method === 'paypal') {
-    document.getElementById('payment-paypal-target-id').value = memberId;
-    document.getElementById('paypal-duration').value = '12';
-    updatePaypalDisplay();
-    openModal('modal-payment-paypal');
+// Called from member billing row buttons
+async function openPaymentForm(memberId, memberName) {
+  const PAYPAL_CLIENT_ID = localStorage.getItem('paypal_client_id') || 'sb'; // 'sb' = sandbox test mode
+
+  document.getElementById('payment-member-id').value = memberId;
+  document.getElementById('payment-member-name-display').textContent = memberName;
+  document.getElementById('payment-card-error').style.display = 'none';
+  document.getElementById('payment-duration').value = '12';
+  updatePaymentPrice();
+
+  openModal('modal-payment-card');
+
+  // Show loading while SDK loads
+  document.getElementById('paypal-loading').style.display = 'block';
+
+  try {
+    // Initialize PayPal SDK (supports PayPal Wallet, Google Pay, and Hosted Fields)
+    await window.PaymentModule.initPayPal(PAYPAL_CLIENT_ID);
+    document.getElementById('paypal-loading').style.display = 'none';
+    paymentState.paypalInitialized = true;
+
+    // Render PayPal Wallet button in the PayPal tab
+    await renderPayPalWalletButton(memberId, memberName);
+
+    // Render Google Pay button in the Google Pay tab
+    await renderGooglePayButton(memberId, memberName);
+
+    // Initialize credit card form in the Card tab
+    await initializeCardForm(memberId, memberName);
+
+    // Show the first tab (PayPal) by default
+    switchPaymentMethod('paypal');
+  } catch (err) {
+    document.getElementById('paypal-loading').style.display = 'none';
+    document.getElementById('payment-card-error').textContent = 'Failed to load payment system. Check your internet connection.';
+    document.getElementById('payment-card-error').style.display = 'block';
+    console.error('Payment init error:', err);
   }
 }
 
-function updatePaypalDisplay() {
-  const prices = { '1': '29.99', '3': '79.99', '12': '249.99' };
-  const labels = { '1': '1 Month', '3': '3 Months', '12': '1 Year' };
-  const dur = document.getElementById('paypal-duration').value;
-  document.getElementById('paypal-plan-label').textContent = labels[dur] || dur + ' Months';
-  document.getElementById('paypal-amount-display').textContent = prices[dur] || '0.00';
+// Render PayPal Wallet button
+async function renderPayPalWalletButton(memberId, memberName) {
+  try {
+    await window.PaymentModule.renderPayPalWalletButton('paypal-wallet-button-container', {
+      get amount() {
+        const sel = document.getElementById('payment-duration');
+        return sel.options[sel.selectedIndex].getAttribute('data-price');
+      },
+      get duration() {
+        return document.getElementById('payment-duration').value;
+      },
+      memberId,
+      memberName,
+      onSuccess: (result) => handlePaymentSuccess(result, memberId),
+      onError: (msg) => handlePaymentError(msg),
+    });
+  } catch (err) {
+    console.error('PayPal Wallet button error:', err);
+    document.getElementById('payment-card-error').textContent = 'Failed to load PayPal button.';
+    document.getElementById('payment-card-error').style.display = 'block';
+  }
 }
 
-async function processPayPalPayment() {
-  const memberId = document.getElementById('payment-paypal-target-id').value;
-  const duration = parseInt(document.getElementById('paypal-duration').value);
-  const prices   = { 1: '29.99', 3: '79.99', 12: '249.99' };
-  const amount   = prices[duration] || '0.00';
-
-  alert(`✅ PayPal Payment Processed!\n\nAmount: $${amount}\n\nMembership extended by ${duration} month(s).`);
-
-  const member = await DB.getUserById(memberId);
-  if (member) {
-    const base = member.membershipExpiry && new Date(member.membershipExpiry) > new Date()
-      ? new Date(member.membershipExpiry) : new Date();
-    base.setMonth(base.getMonth() + duration);
-    await DB.updateUser(memberId, { membershipExpiry: base.toISOString().split('T')[0] });
+// Render Google Pay button
+async function renderGooglePayButton(memberId, memberName) {
+  try {
+    await window.PaymentModule.renderGooglePayButton('googlepay-button-container', {
+      get amount() {
+        const sel = document.getElementById('payment-duration');
+        return sel.options[sel.selectedIndex].getAttribute('data-price');
+      },
+      get duration() {
+        return document.getElementById('payment-duration').value;
+      },
+      memberId,
+      memberName,
+      onSuccess: (result) => handlePaymentSuccess(result, memberId),
+      onError: (msg) => handlePaymentError(msg),
+    });
+  } catch (err) {
+    console.error('Google Pay button error:', err);
+    // Google Pay may not be available on this device — don't show error
+    document.getElementById('googlepay-button-container').innerHTML =
+      '<p style="text-align:center;color:var(--text-muted);font-size:13px">Google Pay not available on this device</p>';
   }
-  closeModal('modal-payment-paypal');
-  renderBilling();
-  if (memberId === session.id) checkCoachMembership();
 }
 
-async function processCardPayment() {
-  const memberId = document.getElementById('payment-member-id').value;
-  const cardNum = document.getElementById('payment-card-number').value.replace(/\s/g, '');
-  const expiry = document.getElementById('payment-expiry').value;
-  const cvc = document.getElementById('payment-cvc').value;
-  const name = document.getElementById('payment-name').value;
-  const amount = document.getElementById('payment-amount').value;
-  const duration = parseInt(document.getElementById('payment-duration').value);
-  const errEl = document.getElementById('payment-card-error');
+// Initialize card form with Hosted Fields
+async function initializeCardForm(memberId, memberName) {
+  try {
+    await window.PaymentModule.initHostedFields('card-form', {
+      get amount() {
+        const sel = document.getElementById('payment-duration');
+        return sel.options[sel.selectedIndex].getAttribute('data-price');
+      },
+      get duration() {
+        return document.getElementById('payment-duration').value;
+      },
+      memberId,
+      memberName,
+      onSuccess: (result) => handlePaymentSuccess(result, memberId),
+      onError: (msg) => handlePaymentError(msg),
+    });
+    paymentState.hostedFieldsInitialized = true;
 
-  // Validation
-  if (!cardNum || cardNum.length < 13) {
-    errEl.textContent = 'Invalid card number.';
-    errEl.style.display = 'block';
-    return;
+    // Update card amount display
+    updateCardAmountDisplay();
+  } catch (err) {
+    console.error('Card form init error:', err);
+    document.getElementById('payment-card-error').textContent = 'Failed to initialize card form.';
+    document.getElementById('payment-card-error').style.display = 'block';
   }
-  if (!expiry || !expiry.match(/^\d{2}\/\d{2}$/)) {
-    errEl.textContent = 'Invalid expiry. Use MM/YY format.';
-    errEl.style.display = 'block';
-    return;
-  }
-  if (!cvc || cvc.length < 3) {
-    errEl.textContent = 'Invalid CVC.';
-    errEl.style.display = 'block';
-    return;
-  }
-  if (!name) {
-    errEl.textContent = 'Please enter cardholder name.';
-    errEl.style.display = 'block';
-    return;
-  }
-  if (!amount || parseFloat(amount) < 1) {
-    errEl.textContent = 'Invalid amount.';
-    errEl.style.display = 'block';
-    return;
-  }
+}
 
-  // Mocked payment processing
-  alert(`✅ Payment Processed!\n\nCard: ****${cardNum.slice(-4)}\nAmount: $${amount}\n\nMembership extended by ${duration} month(s).`);
+// Switch between payment methods
+function switchPaymentMethod(method) {
+  paymentState.currentMethod = method;
 
-  // Update member membership expiry
-  const member = await DB.getUserById(memberId);
-  if (member) {
-    const base = member.membershipExpiry && new Date(member.membershipExpiry) > new Date()
-      ? new Date(member.membershipExpiry) : new Date();
-    base.setMonth(base.getMonth() + duration);
-    await DB.updateUser(memberId, { membershipExpiry: base.toISOString().split('T')[0] });
-  }
+  // Hide all methods
+  document.getElementById('payment-method-paypal').style.display = 'none';
+  document.getElementById('payment-method-googlepay').style.display = 'none';
+  document.getElementById('payment-method-card').style.display = 'none';
 
+  // Remove active class from all tabs
+  document.getElementById('tab-paypal').classList.remove('active');
+  document.getElementById('tab-googlepay').classList.remove('active');
+  document.getElementById('tab-card').classList.remove('active');
+
+  // Show selected method and mark tab as active
+  const methodEl = document.getElementById('payment-method-' + method);
+  const tabEl = document.getElementById('tab-' + method);
+  if (methodEl) methodEl.style.display = 'block';
+  if (tabEl) tabEl.classList.add('active');
+}
+
+// Handle payment success
+async function handlePaymentSuccess(result, memberId) {
+  const duration = document.getElementById('payment-duration').value;
   closeModal('modal-payment-card');
-  renderBilling();
-  if (memberId === session.id) checkCoachMembership();
+  alert(`✅ Payment Successful!\n\nMembership extended by ${duration} month(s).\nNew expiry: ${result.newExpiry || 'updated'}`);
+  await renderBilling();
+  if (memberId === session.id) await checkCoachMembership();
 }
 
-async function processGooglePayment() {
-  const memberId = document.getElementById('payment-google-member-id').value;
-  const amount = document.getElementById('payment-google-amount').value;
-  const duration = parseInt(document.getElementById('payment-google-duration').value);
-
-  // Mocked Google Pay processing
-  alert(`✅ Google Pay Payment Processed!\n\nAmount: $${amount}\n\nMembership extended by ${duration} month(s).`);
-
-  // Update member membership expiry
-  const member = await DB.getUserById(memberId);
-  if (member) {
-    const base = member.membershipExpiry && new Date(member.membershipExpiry) > new Date()
-      ? new Date(member.membershipExpiry) : new Date();
-    base.setMonth(base.getMonth() + duration);
-    await DB.updateUser(memberId, { membershipExpiry: base.toISOString().split('T')[0] });
-  }
-  closeModal('modal-payment-google');
-  renderBilling();
-  if (memberId === session.id) checkCoachMembership();
+// Handle payment error
+function handlePaymentError(msg) {
+  if (msg === 'Payment cancelled.') return; // Ignore cancel
+  document.getElementById('payment-card-error').textContent = msg;
+  document.getElementById('payment-card-error').style.display = 'block';
 }
+
+// Submit card payment (called by card form button)
+async function submitCardPayment() {
+  // The actual submission is handled by PaymentModule.initHostedFields
+  // This is called when user clicks the card submit button
+}
+
+// Updates the price display when duration changes
+function updatePaymentPrice() {
+  const sel = document.getElementById('payment-duration');
+  if (!sel) return;
+  const price = sel.options[sel.selectedIndex].getAttribute('data-price') || '0.00';
+  const priceEl = document.getElementById('payment-price-display');
+  if (priceEl) priceEl.textContent = `$${price}`;
+
+  // Also update card amount display
+  updateCardAmountDisplay();
+}
+
+// Update card form amount display
+function updateCardAmountDisplay() {
+  const sel = document.getElementById('payment-duration');
+  const price = sel.options[sel.selectedIndex].getAttribute('data-price') || '0.00';
+  const cardAmountEl = document.getElementById('card-amount-display');
+  if (cardAmountEl) cardAmountEl.textContent = price;
+}
+
+// Google Pay removed — all payments now go through PayPal
+// (Google Pay + Apple Pay can be added as PayPal wallet options in future)
 
 // ════════════════════════════════
 // SETTINGS
