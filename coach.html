@@ -193,7 +193,10 @@
 
         <!-- Header -->
         <div style="display:flex;justify-content:space-between;align-items:center;margin:24px 0 16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
-          <h2 style="font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Your Roster</h2>
+          <div style="display:flex;align-items:center;gap:12px">
+            <h2 style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1.6px;color:var(--text-muted)">Your Roster</h2>
+            <span class="live-pill">Live</span>
+          </div>
           <button class="btn btn-primary" style="padding:8px 14px;font-size:13px" onclick="openAddMember()">+ Add Member</button>
         </div>
 
@@ -238,8 +241,12 @@
         <div class="daily-insight">
           <div class="daily-insight-icon">✨</div>
           <div class="daily-insight-content">
-            <div class="daily-insight-title">Daily Insight · 07:24</div>
-            <div class="daily-insight-text" id="preservation-insight">3 clients haven't logged in 5+ days. A quick nudge today recovers 78% of them.</div>
+            <div class="daily-insight-title" id="preservation-title">Daily Insight · <span id="preservation-time">--:--</span></div>
+            <div class="daily-insight-text" id="preservation-insight">Loading insight…</div>
+            <button class="daily-insight-cta" onclick="sendInsightCheckIn()">
+              <span>Send check-in</span>
+              <span class="arrow">→</span>
+            </button>
           </div>
         </div>
 

@@ -89,9 +89,16 @@ export class CoachPreservation {
   renderInsight() {
     const atRiskCount = this.clients.atRisk.length;
     const insightEl = document.getElementById('preservation-insight');
+    const timeEl = document.getElementById('preservation-time');
+    if (timeEl) {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      timeEl.textContent = `${hh}:${mm}`;
+    }
 
     if (atRiskCount === 0) {
-      insightEl.textContent = 'All your clients are engaged! Keep up the great coaching.';
+      insightEl.textContent = 'All your clients are engaged — keep the momentum going.';
     } else if (atRiskCount === 1) {
       insightEl.textContent = '1 client hasn\'t logged in 5+ days. A quick nudge today could bring them back.';
     } else {
@@ -219,6 +226,25 @@ window.sendPreservationMessage = async () => {
   } catch (err) {
     console.error('Failed to send message:', err);
     window.toast('Failed to send message', 'error');
+  }
+};
+
+// Bulk check-in: send "Hi, how are you doing?" to every at-risk client at once
+window.sendInsightCheckIn = async () => {
+  const cp = window.coachPreservation;
+  if (!cp || !cp.clients || cp.clients.atRisk.length === 0) {
+    window.toast && window.toast('No at-risk clients — nice work!', 'info');
+    return;
+  }
+  const atRisk = cp.clients.atRisk;
+  try {
+    await Promise.all(
+      atRisk.map(c => window.DB.sendAutoMessage(c.id, 'Hi, how are you doing?', 'daily-insight-check'))
+    );
+    window.toast && window.toast(`Check-in sent to ${atRisk.length} client${atRisk.length === 1 ? '' : 's'} ✓`);
+  } catch (err) {
+    console.error('Bulk check-in failed:', err);
+    window.toast && window.toast('Failed to send check-ins', 'error');
   }
 };
 

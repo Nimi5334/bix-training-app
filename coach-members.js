@@ -90,9 +90,22 @@ export class CoachMembers {
   }
 
   getAvatarColor(name) {
-    const colors = ['#7c3aed', '#3498db', '#2ecc71', '#f59e0b', '#ef4444', '#06b6d4'];
-    const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[hash % colors.length];
+    const gradients = [
+      'linear-gradient(135deg, #7c3aed, #a488ff)',
+      'linear-gradient(135deg, #3498db, #06b6d4)',
+      'linear-gradient(135deg, #10b981, #34d399)',
+      'linear-gradient(135deg, #f59e0b, #fb923c)',
+      'linear-gradient(135deg, #ef4444, #f472b6)',
+      'linear-gradient(135deg, #6366f1, #8b5cf6)'
+    ];
+    const hash = (name || '?').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return gradients[hash % gradients.length];
+  }
+
+  getFlameClass(streak) {
+    if (!streak || streak === 0) return 'cold';
+    if (streak >= 14) return 'hot';
+    return '';
   }
 
   renderMembers() {
@@ -110,20 +123,22 @@ export class CoachMembers {
     document.getElementById('no-members').style.display = 'none';
     container.innerHTML = filtered.map(member => {
       const status = this.getStatus(member);
-      const { badge, color } = this.getAvatarColor(member.name);
       const { badge: activityBadge, color: badgeColor } = this.getActivityBadge(member);
-      const initials = member.name.split(' ').map(n => n[0]).join('').toUpperCase();
+      const initials = (member.name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
       const shouldShowWarning = status === 'at-risk' || status === 'expired';
+      const streak = member.workoutStreak || 0;
+      const flameClass = this.getFlameClass(streak);
+      const streakText = streak > 0 ? `${streak}d streak` : '— no activity';
 
       return `
         <div class="member-card" onclick="openMemberDetail('${member.id}')">
-          ${shouldShowWarning ? `<div class="warning-icon">⚠️</div>` : ''}
+          ${shouldShowWarning ? `<div class="warning-icon">⚠</div>` : ''}
           <div class="member-avatar" style="background:${this.getAvatarColor(member.name)}">${initials}</div>
           <div class="member-info">
             <div class="member-name">${member.name}</div>
             <div class="member-activity">
-              <span>🔥</span>
-              <span id="streak-${member.id}">${member.workoutStreak || 0}d streak</span>
+              <span class="flame ${flameClass}">🔥</span>
+              <span id="streak-${member.id}">${streakText}</span>
             </div>
           </div>
           <div class="member-badge ${badgeColor}">${activityBadge}</div>
