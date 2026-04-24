@@ -12,6 +12,7 @@
   <style>html{background:#0a0a0f}</style>
   <script type="module">
     import { DB, auth } from './db-firebase.js';
+    import './db-extensions.js';
     import * as PaymentModule from './payment-paypal.js';
     import { toast } from './toast.js';
     import { MessagingUI, subscribeUnreadCount } from './messaging.js';
@@ -19,6 +20,11 @@
     import { Gamification } from './gamification.js';
     import { VideoFormCheck } from './video-form-check.js';
     import { Onboarding } from './onboarding.js';
+    import { CoachMembers } from './coach-members.js';
+    import { CoachPreservation } from './coach-preservation.js';
+    import { CoachTasks } from './coach-tasks.js';
+    import { CoachBilling } from './coach-billing.js';
+    import { Notifications } from './notifications.js';
     // Auth guard: redirect if not logged in or not coach/admin
     auth.onAuthStateChanged(async (user) => {
       if (!user) {
@@ -42,6 +48,19 @@
         else b.classList.remove('show');
       });
     });
+    // Initialize feature modules
+    const coachMembers = new CoachMembers();
+    const coachPreservation = new CoachPreservation();
+    const coachTasks = new CoachTasks();
+    const coachBilling = new CoachBilling();
+    const notifications = new Notifications();
+
+    coachMembers.init();
+    coachPreservation.init();
+    coachTasks.init();
+    coachBilling.init();
+    notifications.init();
+
     // Make globals available to legacy non-module scripts
     window.DB = DB;
     window.auth = auth;
@@ -53,6 +72,11 @@
     window.VideoFormCheck = VideoFormCheck;
     window.Onboarding = Onboarding;
     window.subscribeUnreadCount = subscribeUnreadCount;
+    window.coachMembers = coachMembers;
+    window.coachPreservation = coachPreservation;
+    window.coachTasks = coachTasks;
+    window.coachBilling = coachBilling;
+    window.notifications = notifications;
   </script>
   <style>
     .member-card {
@@ -103,12 +127,15 @@
       <div class="nav-item active" onclick="showPage('members')" data-page="members">
         <span class="nav-icon">👥</span> Members
       </div>
+      <div class="nav-item" onclick="showPage('preservation')" data-page="preservation">
+        <span class="nav-icon">🎯</span> Client Preservation
+      </div>
+      <div class="nav-item" onclick="showPage('tasks')" data-page="tasks">
+        <span class="nav-icon">📋</span> Tasks
+      </div>
       <div class="nav-item" onclick="showPage('messages')" data-page="messages" style="position:relative">
         <span class="nav-icon">💬</span> Messages
         <span id="messages-unread-badge" style="display:none;position:absolute;right:14px;top:50%;transform:translateY(-50%);background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;min-width:18px;text-align:center"></span>
-      </div>
-      <div class="nav-item" onclick="showPage('formcheck')" data-page="formcheck">
-        <span class="nav-icon">🎥</span> Form Check
       </div>
       <div class="nav-item" onclick="showPage('leaderboard')" data-page="leaderboard">
         <span class="nav-icon">🏆</span> Leaderboard
@@ -147,38 +174,45 @@
 
     <!-- ══ MEMBERS ══ -->
     <div class="page active" id="page-members">
+      <div style="max-width:1000px">
+        <!-- Status Cards -->
+        <div class="status-cards">
+          <div class="status-card active">
+            <div class="status-card-number" id="status-active-count">42</div>
+            <div class="status-card-label">Active</div>
+          </div>
+          <div class="status-card at-risk">
+            <div class="status-card-number" id="status-atrisk-count">3</div>
+            <div class="status-card-label">At Risk</div>
+          </div>
+          <div class="status-card expired">
+            <div class="status-card-number" id="status-expired-count">2</div>
+            <div class="status-card-label">Expired</div>
+          </div>
+        </div>
 
-      <!-- Daily Insight banner (AI / psychology-driven nudge) -->
-      <div id="daily-insight-host"></div>
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:24px 0 16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+          <h2 style="font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Your Roster</h2>
+          <button class="btn btn-primary" style="padding:8px 14px;font-size:13px" onclick="openAddMember()">+ Add Member</button>
+        </div>
 
-      <!-- KPI snapshot (roster health at a glance) -->
-      <div class="kpi-grid" id="coach-kpi-grid">
-        <div class="kpi-tile kpi-green"><div class="kpi-value" id="kpi-active">0</div><div class="kpi-label">Active</div></div>
-        <div class="kpi-tile kpi-amber"><div class="kpi-value" id="kpi-risk">0</div><div class="kpi-label">At Risk</div></div>
-        <div class="kpi-tile kpi-red"><div class="kpi-value" id="kpi-expired">0</div><div class="kpi-label">Expired</div></div>
-        <div class="kpi-tile kpi-accent"><div class="kpi-value" id="kpi-reviews">0</div><div class="kpi-label">Reviews Waiting</div></div>
-      </div>
+        <!-- Live Filter Toggle (for future use) -->
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px" id="filter-all" onclick="filterMembers('all')">All</button>
+          <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px" id="filter-active" onclick="filterMembers('active')">Active</button>
+          <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px" id="filter-atrisk" onclick="filterMembers('at-risk')">At Risk</button>
+          <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px" id="filter-expired" onclick="filterMembers('expired')">Expired</button>
+        </div>
 
-      <!-- Retention Radar (at-risk alerts with one-tap actions) -->
-      <div id="retention-radar-host"></div>
+        <!-- Members List -->
+        <div id="members-list-container">
+          <!-- Populated by JavaScript -->
+        </div>
 
-      <div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0 20px">
-        <h2 style="font-size:16px;font-weight:700">Roster</h2>
-        <button class="btn btn-primary btn-sm" onclick="openAddMember()">+ Add Member</button>
-      </div>
-
-      <!-- Active -->
-      <div class="section-divider" style="color:var(--green)">✅ Active Members <span id="active-count" style="color:var(--text-muted)"></span></div>
-      <div id="active-members-list"></div>
-      <div class="empty-state" id="active-empty" style="display:none;padding:24px 0">
-        <p>No active members yet.</p>
-      </div>
-
-      <!-- Expired -->
-      <div class="section-divider" style="color:var(--red);margin-top:32px">⛔ Expired Memberships <span id="expired-count" style="color:var(--text-muted)"></span></div>
-      <div id="expired-members-list"></div>
-      <div class="empty-state" id="expired-empty" style="display:none;padding:24px 0">
-        <p>No expired memberships.</p>
+        <div id="no-members" style="padding:40px 0;text-align:center;color:var(--text-muted)">
+          <p style="font-size:14px">No members yet. Click "+ Add Member" to get started.</p>
+        </div>
       </div>
     </div>
 
@@ -197,8 +231,68 @@
       </div>
     </div>
 
-    <!-- ══ FORM CHECK (Coach Review Queue) ══ -->
-    <div class="page" id="page-formcheck">
+    <!-- ══ CLIENT PRESERVATION ══ -->
+    <div class="page" id="page-preservation">
+      <div style="max-width:900px">
+        <!-- Daily Insight Card -->
+        <div class="daily-insight">
+          <div class="daily-insight-icon">✨</div>
+          <div class="daily-insight-content">
+            <div class="daily-insight-title">Daily Insight · 07:24</div>
+            <div class="daily-insight-text" id="preservation-insight">3 clients haven't logged in 5+ days. A quick nudge today recovers 78% of them.</div>
+          </div>
+        </div>
+
+        <!-- Retention Radar Section -->
+        <div style="margin-top:24px">
+          <h2 style="font-size:16px;font-weight:700;margin-bottom:16px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted)">Retention Radar</h2>
+          <div class="retention-radar" id="retention-radar-list">
+            <!-- Populated by JavaScript -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ TASKS (Review Queue & Payments) ══ -->
+    <div class="page" id="page-tasks">
+      <div style="max-width:800px">
+        <div class="review-queue-header">
+          <div>
+            <div class="review-queue-title">Review Queue</div>
+            <div style="font-size:24px;font-weight:700">
+              <span id="tasks-count">0</span>
+              <span class="review-queue-count-highlight"> tasks waiting</span>
+            </div>
+          </div>
+          <div class="review-queue-timer">⏱ &lt; 24h</div>
+        </div>
+
+        <!-- Technique Checks Section -->
+        <div style="margin-bottom:32px">
+          <h3 style="font-size:14px;font-weight:700;letter-spacing:1px;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px">Technique Checks</h3>
+          <div id="technique-checks-list">
+            <!-- Populated by JavaScript -->
+          </div>
+          <div id="no-technique-checks" style="padding:24px 0;text-align:center;color:var(--text-muted)">
+            No pending technique checks
+          </div>
+        </div>
+
+        <!-- Payment Requests Section -->
+        <div>
+          <h3 style="font-size:14px;font-weight:700;letter-spacing:1px;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px">Payment Requests</h3>
+          <div id="payment-requests-list">
+            <!-- Populated by JavaScript -->
+          </div>
+          <div id="no-payment-requests" style="padding:24px 0;text-align:center;color:var(--text-muted)">
+            No pending payments
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ FORM CHECK (Coach Review Queue - Legacy) ══ -->
+    <div class="page" id="page-formcheck" style="display:none">
       <div style="max-width:800px">
         <div class="section-divider">📥 Pending Reviews</div>
         <div id="vc-coach-list"></div>
@@ -307,6 +401,67 @@
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-secondary" onclick="closeModal('modal-member')">Cancel</button>
       <button class="btn btn-primary"   onclick="saveMember()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Technique Review ══ -->
+<div class="modal-overlay" id="modal-technique-review">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-header">
+      <h2>Review Technique</h2>
+      <button class="modal-close" onclick="closeModal('modal-technique-review')">×</button>
+    </div>
+    <input type="hidden" id="technique-check-id" />
+
+    <div style="margin-bottom:16px;padding:12px;background:var(--surface);border-radius:var(--r-md)">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Client</div>
+      <div id="technique-client-name" style="font-weight:600"></div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:4px">Exercise: <span id="technique-exercise"></span></div>
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted)">Feedback</label>
+      <textarea id="technique-feedback" class="message-editor" placeholder="Provide your feedback..."></textarea>
+    </div>
+
+    <div style="margin-bottom:16px">
+      <label style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted)">Rating</label>
+      <div class="star-rating">
+        <button class="star" onclick="rateStars(1)">★</button>
+        <button class="star" onclick="rateStars(2)">★</button>
+        <button class="star active" onclick="rateStars(3)">★</button>
+        <button class="star" onclick="rateStars(4)">★</button>
+        <button class="star" onclick="rateStars(5)">★</button>
+      </div>
+      <input type="hidden" id="technique-rating" value="3" />
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="closeModal('modal-technique-review')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitTechniqueReview()">Send Feedback</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Edit & Send Preservation Message ══ -->
+<div class="modal-overlay" id="modal-preservation-message">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header">
+      <h2 id="preservation-modal-title">Send Message</h2>
+      <button class="modal-close" onclick="closeModal('modal-preservation-message')">×</button>
+    </div>
+    <input type="hidden" id="preservation-client-id" />
+    <input type="hidden" id="preservation-action-type" />
+
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted)">Message</label>
+      <textarea id="preservation-message-text" class="message-editor" placeholder="Edit your message here..."></textarea>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="closeModal('modal-preservation-message')">Cancel</button>
+      <button class="btn btn-primary" onclick="sendPreservationMessage()">Send to Chat</button>
     </div>
   </div>
 </div>

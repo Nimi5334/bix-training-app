@@ -11,6 +11,9 @@
   <style>html{background:#0f0f0f}</style>
   <script type="module">
     import { DB, auth } from './db-firebase.js';
+    import './db-extensions.js';
+    import { AdminTesting } from './admin-testing.js';
+    import { toast } from './toast.js';
     // Auth guard: redirect if not logged in or not admin
     auth.onAuthStateChanged(async (user) => {
       if (!user) {
@@ -23,10 +26,17 @@
         return;
       }
       window.session = userData;
+      document.dispatchEvent(new CustomEvent('sessionReady'));
     });
-    // Make DB available globally
+    // Initialize admin modules
+    const adminTesting = new AdminTesting();
+    adminTesting.init();
+
+    // Make globals available
     window.DB = DB;
     window.auth = auth;
+    window.toast = toast;
+    window.adminTesting = adminTesting;
   </script>
 </head>
 <body>
@@ -45,6 +55,9 @@
       </div>
       <div class="nav-item" onclick="showPage('coaches')" data-page="coaches">
         <span class="nav-icon">🧑‍💼</span> Coaches
+      </div>
+      <div class="nav-item" onclick="showPage('testing')" data-page="testing">
+        <span class="nav-icon">🤖</span> Testing Agents
       </div>
       <div class="nav-item" onclick="showPage('settings')" data-page="settings">
         <span class="nav-icon">⚙️</span> Settings
@@ -133,6 +146,60 @@
         <div class="empty-state" id="coaches-empty" style="display:none">
           <div class="empty-icon">🧑‍💼</div>
           <p>No coaches yet.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ TESTING AGENTS ══ -->
+    <div class="page" id="page-testing">
+      <div style="max-width:900px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div>
+            <h2 style="font-size:18px;font-weight:700;margin-bottom:4px">AI Testing Agents</h2>
+            <p style="font-size:13px;color:var(--text-muted)">Automated QA agents that test the app and detect bugs</p>
+          </div>
+          <button class="btn btn-primary" onclick="createTestAgents()">+ Create 10 Test Agents</button>
+        </div>
+
+        <!-- Agent Stats -->
+        <div class="status-cards" style="margin-bottom:24px">
+          <div class="status-card active">
+            <div class="status-card-number" id="agents-active">0</div>
+            <div class="status-card-label">Active Agents</div>
+          </div>
+          <div class="status-card at-risk">
+            <div class="status-card-number" id="agents-bugs-found">0</div>
+            <div class="status-card-label">Bugs Found</div>
+          </div>
+          <div class="status-card expired">
+            <div class="status-card-number" id="agents-tests-run">0</div>
+            <div class="status-card-label">Tests Run</div>
+          </div>
+        </div>
+
+        <!-- Agent Controls -->
+        <div style="display:flex;gap:10px;margin-bottom:20px">
+          <button class="btn btn-primary" onclick="runAllAgentTests()" style="padding:10px 16px">▶️ Run All Tests</button>
+          <button class="btn btn-secondary" onclick="stopAllAgents()" style="padding:10px 16px">⏸ Stop All</button>
+          <button class="btn btn-secondary" onclick="viewBugReport()" style="padding:10px 16px">📋 View Bug Report</button>
+        </div>
+
+        <!-- Agents List -->
+        <h3 style="font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px">Testing Agents</h3>
+        <div id="testing-agents-list">
+          <!-- Populated by admin-testing.js -->
+        </div>
+        <div id="no-agents" style="padding:40px 0;text-align:center;color:var(--text-muted)">
+          <p>No test agents yet. Click "Create 10 Test Agents" to start.</p>
+        </div>
+
+        <!-- Bug Report Section -->
+        <h3 style="font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin:32px 0 12px">Detected Issues</h3>
+        <div id="bug-report-list">
+          <!-- Populated by admin-testing.js -->
+        </div>
+        <div id="no-bugs" style="padding:40px 0;text-align:center;color:var(--text-muted)">
+          <p>No issues detected yet. All clear! ✅</p>
         </div>
       </div>
     </div>

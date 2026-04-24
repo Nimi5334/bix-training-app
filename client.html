@@ -12,12 +12,17 @@
   <style>html{background:#0a0a0f}</style>
   <script type="module">
     import { DB, auth, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from './db-firebase.js';
+    import './db-extensions.js';
     import * as PaymentModule from './payment-paypal.js';
     import { toast } from './toast.js';
     import { MessagingUI, subscribeUnreadCount } from './messaging.js';
     import { Analytics } from './analytics.js';
     import { Gamification } from './gamification.js';
     import { VideoFormCheck } from './video-form-check.js';
+    import { ClientProgram } from './client-program.js';
+    import { ClientAnalytics } from './client-analytics.js';
+    import { ClientBilling } from './client-billing.js';
+    import { Notifications } from './notifications.js';
     // Auth guard: redirect if not logged in or not client
     auth.onAuthStateChanged(async (user) => {
       if (!user) { location.replace('index.html'); return; }
@@ -45,6 +50,30 @@
     window.Gamification = Gamification;
     window.VideoFormCheck = VideoFormCheck;
     window.subscribeUnreadCount = subscribeUnreadCount;
+
+    // Initialize client modules
+    const clientProgram = new ClientProgram();
+    const clientAnalytics = new ClientAnalytics();
+    const clientBilling = new ClientBilling();
+    const notifications = new Notifications();
+    clientProgram.init();
+    clientAnalytics.init();
+    clientBilling.init();
+    notifications.init();
+    window.clientProgram = clientProgram;
+    window.clientAnalytics = clientAnalytics;
+    window.clientBilling = clientBilling;
+    window.notifications = notifications;
+
+    // Start today's workout handler
+    window.startTodaysWorkout = () => {
+      if (window.clientProgram) {
+        window.clientProgram.currentWeek = 1;
+        window.startWorkout();
+      } else {
+        window.toast('Loading your program...');
+      }
+    };
   </script>
 </head>
 <body>
@@ -59,17 +88,20 @@
     </div>
     <nav class="sidebar-nav">
       <div class="nav-item active" onclick="showPage('home')" data-page="home">
-        <span class="nav-icon">🏠</span> Home
+        <span class="nav-icon">💪</span> My Program
       </div>
       <div class="nav-item" onclick="showPage('progress')" data-page="progress">
-        <span class="nav-icon">📈</span> Progress
+        <span class="nav-icon">📊</span> Analytics
       </div>
       <div class="nav-item" onclick="showPage('formcheck')" data-page="formcheck">
         <span class="nav-icon">🎥</span> Form Check
       </div>
       <div class="nav-item" onclick="showPage('messages')" data-page="messages">
-        <span class="nav-icon">💬</span> Messages
+        <span class="nav-icon">💬</span> Chat
         <span class="nav-pill" id="client-messages-unread"></span>
+      </div>
+      <div class="nav-item" onclick="showPage('billing')" data-page="billing">
+        <span class="nav-icon">💳</span> Billing
       </div>
       <div class="nav-item" onclick="showPage('profile')" data-page="profile">
         <span class="nav-icon">👤</span> Profile
@@ -124,6 +156,13 @@
         <button id="weight-edit-btn" onclick="startWeightEdit()" class="btn btn-secondary btn-sm" style="margin-left:auto">Update</button>
       </div>
 
+      <!-- Large Start Workout Button -->
+      <div style="margin-bottom:24px">
+        <button class="btn btn-primary" style="width:100%;padding:18px;font-size:16px;font-weight:700;box-shadow:var(--sh-cta)" onclick="startTodaysWorkout()">
+          🚀 Start Today's Workout
+        </button>
+      </div>
+
       <div id="week-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px"></div>
       <div id="week-content"></div>
     </div>
@@ -173,6 +212,13 @@
           <div style="padding:14px 18px;border-bottom:1px solid var(--border);font-weight:700;font-size:14px">💬 Messages with your coach</div>
           <div id="client-messages-inbox" style="max-height:70vh;overflow-y:auto"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- ══ BILLING (New) ══ -->
+    <div class="page" id="page-billing">
+      <div style="max-width:600px">
+        <!-- Populated by client-billing.js -->
       </div>
     </div>
 
