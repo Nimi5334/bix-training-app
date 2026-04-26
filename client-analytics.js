@@ -1,248 +1,250 @@
 /**
- * Client Analytics
- * Weight tracking, goal setting, and progress visualization
+ * Client Analytics — Phase 6
+ * Weight tracking, goal setting, SVG line graph, monthly reminder, goal-reached alert
  */
 
 export class ClientAnalytics {
   constructor() {
-    this.weightData = [];
-    this.goal = null;
-    this.currentWeight = null;
+    this.weightData   = [];
+    this.goal         = {};
+    this.currentWeight = 0;
   }
 
   async init() {
     document.addEventListener('sessionReady', () => this.loadAnalytics());
-    window.addEventListener('weightUpdated', () => this.loadAnalytics());
+    window.addEventListener('weightUpdated',  () => this.loadAnalytics());
   }
 
   async loadAnalytics() {
     if (!window.session) return;
     try {
       const data = await window.DB.getClientAnalytics(window.session.id);
-      this.weightData = data.weightHistory || [];
-      this.goal = data.goal || {};
+      this.weightData    = (data.weightHistory || []).sort((a, b) => new Date(a.date) - new Date(b.date));
+      this.goal          = data.goal || {};
       this.currentWeight = data.currentWeight || 0;
-      this.renderGoalSelector();
-      this.renderWeightGraph();
-      this.renderWeightInput();
+
+      this._render();
+      this._checkMonthlyReminder();
     } catch (err) {
-      console.error('Failed to load analytics:', err);
+      console.error('ClientAnalytics error:', err);
     }
   }
 
-  renderGoalSelector() {
-    const container = document.getElementById('goal-selector') || this.createGoalSelectorContainer();
+  _render() {
+    const host = document.getElementById('analytics-host');
+    if (!host) return;
 
-    const purposeOptions = ['Losing weight', 'Gaining weight', 'Maintaining weight'];
-    container.innerHTML = `
-      <div style="margin-bottom: 16px">
-        <label style="font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted)">Goal Purpose</label>
-        <div style="display: flex; gap: 8px; margin-top: 8px">
-          ${purposeOptions.map(option => `
-            <button
-              class="btn ${this.goal.purpose === option ? 'btn-primary' : 'btn-secondary'}"
-              onclick="setGoalPurpose('${option}')"
-              style="flex: 1; padding: 10px; font-size: 12px"
-            >
-              ${option}
-            </button>
+    const stats = this._calcStats();
+    const purposeOptions = [
+      { key: 'lose',     label: 'Lose Weight' },
+      { key: 'gain',     label: 'Gain Weight' },
+      { key: 'maintain', label: 'Maintain' },
+    ];
+    const currentPurpose = this.goal.purpose || '';
+
+    host.innerHTML = `
+      <!-- Goal settings -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px;margin-bottom:16px">
+        <div style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px">My Goal</div>
+
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          ${purposeOptions.map(p => `
+            <button class="btn ${currentPurpose === p.key ? 'btn-primary' : 'btn-secondary'}"
+              style="flex:1;padding:9px 6px;font-size:12px"
+              onclick="window.clientAnalytics.setPurpose('${p.key}')">${p.label}</button>
           `).join('')}
         </div>
+
+        <div style="display:flex;gap:10px;align-items:flex-end">
+          <div style="flex:1">
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px">Goal Weight (kg)</label>
+            <input type="number" id="goal-weight-input" value="${this.goal.targetWeight || ''}"
+              placeholder="e.g. 75" step="0.1" inputmode="decimal"
+              style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface2);color:var(--text);font-size:14px" />
+          </div>
+          <button class="btn btn-primary" style="padding:10px 18px" onclick="window.saveGoalWeight()">Save</button>
+        </div>
       </div>
 
-      <div style="margin-bottom: 16px">
-        <label style="font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted)">Goal Weight (kg)</label>
-        <input
-          type="number"
-          id="goal-weight-input"
-          value="${this.goal.targetWeight || ''}"
-          placeholder="e.g. 75"
-          step="0.1"
-          style="width: 100%; padding: 10px; margin-top: 8px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--text); font-size: 14px"
-          onchange="saveGoalWeight()"
-        />
+      <!-- Stats tiles -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+        <div style="background:rgba(120,80,255,.07);border:1px solid rgba(120,80,255,.2);border-radius:var(--r-md);padding:14px;text-align:center">
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Current</div>
+          <div style="font-size:22px;font-weight:800;color:#a488ff">${stats.current}</div>
+          <div style="font-size:11px;color:var(--text-muted)">kg</div>
+        </div>
+        <div style="background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:var(--r-md);padding:14px;text-align:center">
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Goal</div>
+          <div style="font-size:22px;font-weight:800;color:#34d399">${this.goal.targetWeight || '—'}</div>
+          <div style="font-size:11px;color:var(--text-muted)">kg</div>
+        </div>
+        <div style="background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:var(--r-md);padding:14px;text-align:center">
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">To Go</div>
+          <div style="font-size:22px;font-weight:800;color:#fbbf24">${stats.remaining}</div>
+          <div style="font-size:11px;color:var(--text-muted)">kg</div>
+        </div>
+      </div>
+
+      <!-- SVG chart -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px;margin-bottom:16px">
+        <div style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:14px">Weight History</div>
+        ${this._renderSvgChart()}
+      </div>
+
+      <!-- Update weight -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px">
+        <div style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px">Log Weight</div>
+        <div style="display:flex;gap:8px">
+          <input type="number" id="weight-input-field" placeholder="kg" step="0.1" inputmode="decimal"
+            value="${this.currentWeight || ''}"
+            style="flex:1;padding:10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface2);color:var(--text);font-size:14px" />
+          <button class="btn btn-primary" onclick="window.updateWeight()" style="padding:10px 20px;font-weight:700">Update</button>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin-top:8px">Monthly reminder to keep your progress up to date.</p>
       </div>
     `;
   }
 
-  renderWeightGraph() {
-    const container = document.getElementById('weight-graph') || this.createGraphContainer();
-
-    if (this.weightData.length === 0) {
-      container.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 24px">No weight data yet. Update your weight to start tracking!</p>';
-      return;
+  _renderSvgChart() {
+    if (this.weightData.length < 2) {
+      return `<p style="text-align:center;color:var(--text-muted);padding:20px 0;font-size:13px">Log at least 2 weight entries to see your chart.</p>`;
     }
 
-    const chartHtml = this.createSimpleChart();
-    const stats = this.calculateStats();
+    const W = 460, H = 160, PL = 38, PR = 12, PT = 10, PB = 28;
+    const plotW = W - PL - PR, plotH = H - PT - PB;
 
-    container.innerHTML = `
-      <div style="background: var(--surface); border-radius: var(--r-lg); padding: 16px; margin-bottom: 16px">
-        ${chartHtml}
-      </div>
+    const weights = this.weightData.map(d => d.weight);
+    const goal = this.goal.targetWeight;
+    const allVals = [...weights, ...(goal ? [goal] : [])];
+    const minY = Math.min(...allVals) - 1.5;
+    const maxY = Math.max(...allVals) + 1.5;
+    const rangeY = maxY - minY || 1;
 
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
-        <div style="background: var(--surface); padding: 12px; border-radius: var(--r-md); text-align: center">
-          <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px">Current</div>
-          <div style="font-size: 20px; font-weight: 700; color: var(--text)">${stats.current}kg</div>
-        </div>
-        <div style="background: var(--surface); padding: 12px; border-radius: var(--r-md); text-align: center">
-          <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px">Goal</div>
-          <div style="font-size: 20px; font-weight: 700; color: var(--green)">${this.goal.targetWeight || '—'}kg</div>
-        </div>
-        <div style="background: var(--surface); padding: 12px; border-radius: var(--r-md); text-align: center">
-          <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px">Progress</div>
-          <div style="font-size: 20px; font-weight: 700; color: ${stats.progress >= 0 ? 'var(--green)' : 'var(--amber)'}">${stats.progress > 0 ? '+' : ''}${stats.progress}kg</div>
-        </div>
-        <div style="background: var(--surface); padding: 12px; border-radius: var(--r-md); text-align: center">
-          <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px">Remaining</div>
-          <div style="font-size: 20px; font-weight: 700; color: var(--blue)">${stats.remaining}kg</div>
-        </div>
-      </div>
-    `;
-  }
+    const toX = i => PL + (i / (this.weightData.length - 1)) * plotW;
+    const toY = v => PT + plotH - ((v - minY) / rangeY) * plotH;
 
-  createSimpleChart() {
-    // Simple text-based chart visualization
-    const maxWeight = Math.max(...this.weightData.map(d => d.weight), this.goal.targetWeight || 0);
-    const minWeight = Math.min(...this.weightData.map(d => d.weight), this.goal.targetWeight || 0);
-    const range = maxWeight - minWeight || 1;
+    // Line path
+    const linePts = this.weightData.map((d, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(d.weight).toFixed(1)}`).join(' ');
+
+    // Area fill path
+    const areaPath = linePts + ` L${toX(this.weightData.length - 1).toFixed(1)},${(PT + plotH).toFixed(1)} L${PL},${(PT + plotH).toFixed(1)} Z`;
+
+    // Goal line
+    const goalLine = goal ? `
+      <line x1="${PL}" y1="${toY(goal).toFixed(1)}" x2="${W - PR}" y2="${toY(goal).toFixed(1)}"
+        stroke="#34d399" stroke-width="1.5" stroke-dasharray="5,4" opacity=".7"/>
+      <text x="${W - PR - 2}" y="${(toY(goal) - 4).toFixed(1)}" fill="#34d399" font-size="9" text-anchor="end" opacity=".8">Goal ${goal}kg</text>
+    ` : '';
+
+    // Dots
+    const dots = this.weightData.map((d, i) => `
+      <circle cx="${toX(i).toFixed(1)}" cy="${toY(d.weight).toFixed(1)}" r="3"
+        fill="${i === this.weightData.length - 1 ? '#a488ff' : '#7850ff'}"
+        stroke="var(--surface)" stroke-width="1.5">
+        <title>${d.weight}kg · ${new Date(d.date).toLocaleDateString()}</title>
+      </circle>
+    `).join('');
+
+    // X-axis labels (first, middle, last)
+    const labelIdxs = [0, Math.floor((this.weightData.length - 1) / 2), this.weightData.length - 1].filter((v, i, a) => a.indexOf(v) === i);
+    const xLabels = labelIdxs.map(i => {
+      const d = new Date(this.weightData[i].date);
+      const lbl = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      return `<text x="${toX(i).toFixed(1)}" y="${H}" fill="rgba(255,255,255,.4)" font-size="9" text-anchor="middle">${lbl}</text>`;
+    }).join('');
+
+    // Y-axis labels (min, max)
+    const yLabels = [minY + 1.5, maxY - 1.5].map(v => `
+      <text x="${PL - 4}" y="${(toY(v) + 3).toFixed(1)}" fill="rgba(255,255,255,.4)" font-size="9" text-anchor="end">${v.toFixed(0)}</text>
+    `).join('');
 
     return `
-      <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px">Weight Progress (Last 30 days)</div>
-      <div style="display: flex; align-items: flex-end; gap: 4px; height: 100px">
-        ${this.weightData.slice(-10).map(data => {
-          const height = ((data.weight - minWeight) / range) * 100;
-          return `
-            <div
-              style="flex: 1; background: var(--purple); border-radius: 4px 4px 0 0; height: ${height}%; min-height: 4px; position: relative"
-              title="${data.weight}kg on ${new Date(data.date).toLocaleDateString()}"
-            ></div>
-          `;
-        }).join('')}
-      </div>
-      <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 8px">
-        <span>${minWeight.toFixed(1)}kg</span>
-        <span>${maxWeight.toFixed(1)}kg</span>
-      </div>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;overflow:visible" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="wg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#7850ff" stop-opacity=".25"/>
+            <stop offset="100%" stop-color="#7850ff" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <!-- Grid lines -->
+        <line x1="${PL}" y1="${PT}" x2="${PL}" y2="${PT + plotH}" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
+        <line x1="${PL}" y1="${PT + plotH}" x2="${W - PR}" y2="${PT + plotH}" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
+        ${yLabels}
+        ${xLabels}
+        <!-- Area fill -->
+        <path d="${areaPath}" fill="url(#wg)"/>
+        <!-- Line -->
+        <path d="${linePts}" fill="none" stroke="#7850ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        ${goalLine}
+        ${dots}
+      </svg>
     `;
   }
 
-  calculateStats() {
-    const startWeight = this.weightData[0]?.weight || this.currentWeight;
-    const currentWeight = this.currentWeight;
-    const targetWeight = this.goal.targetWeight || currentWeight;
-
+  _calcStats() {
+    const current = this.currentWeight || this.weightData[this.weightData.length - 1]?.weight || 0;
+    const goal = this.goal.targetWeight || current;
     return {
-      current: currentWeight.toFixed(1),
-      progress: (startWeight - currentWeight).toFixed(1),
-      remaining: Math.abs(currentWeight - targetWeight).toFixed(1)
+      current: current.toFixed(1),
+      remaining: Math.abs(current - goal).toFixed(1),
     };
   }
 
-  renderWeightInput() {
-    const container = document.getElementById('weight-input') || this.createWeightInputContainer();
-
-    container.innerHTML = `
-      <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border)">
-        <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted)">Update Weight</h3>
-        <div style="display: flex; gap: 8px">
-          <input
-            type="number"
-            id="weight-input-field"
-            placeholder="e.g. 75.5"
-            step="0.1"
-            value="${this.currentWeight}"
-            style="flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--text); font-size: 14px"
-          />
-          <button class="btn btn-primary" onclick="updateWeight()" style="padding: 10px 18px; font-weight: 700">Update</button>
-        </div>
-        <p style="font-size: 12px; color: var(--text-muted); margin-top: 8px">📅 You'll get a monthly reminder to update your weight</p>
-      </div>
-    `;
+  _checkMonthlyReminder() {
+    if (!this.weightData.length) return;
+    const lastEntry = new Date(this.weightData[this.weightData.length - 1].date);
+    const daysSince = Math.floor((Date.now() - lastEntry.getTime()) / 86400000);
+    if (daysSince >= 28) {
+      setTimeout(() => window.toast?.('Time to update your weight! 📊 It\'s been over a month.', 'info'), 1500);
+    }
   }
 
-  createGoalSelectorContainer() {
-    const container = document.createElement('div');
-    container.id = 'goal-selector';
-    const analyticsPage = document.getElementById('page-analytics') || this.createAnalyticsPage();
-    analyticsPage.appendChild(container);
-    return container;
-  }
-
-  createGraphContainer() {
-    const container = document.createElement('div');
-    container.id = 'weight-graph';
-    const analyticsPage = document.getElementById('page-analytics') || this.createAnalyticsPage();
-    analyticsPage.appendChild(container);
-    return container;
-  }
-
-  createWeightInputContainer() {
-    const container = document.createElement('div');
-    container.id = 'weight-input';
-    const analyticsPage = document.getElementById('page-analytics') || this.createAnalyticsPage();
-    analyticsPage.appendChild(container);
-    return container;
-  }
-
-  createAnalyticsPage() {
-    const page = document.createElement('div');
-    page.className = 'page';
-    page.id = 'page-analytics';
-    page.style.cssText = 'max-width: 600px';
-    const main = document.querySelector('main');
-    if (main) main.appendChild(page);
-    return page;
+  async setPurpose(key) {
+    this.goal.purpose = key;
+    await window.DB.updateClientGoal(window.session.id, { purpose: key });
+    this._render();
   }
 }
 
 // Global functions
-window.setGoalPurpose = async (purpose) => {
-  if (window.clientAnalytics) {
-    window.clientAnalytics.goal.purpose = purpose;
-    await window.DB.updateClientGoal(window.session.id, { purpose });
-    window.clientAnalytics.renderGoalSelector();
-  }
-};
-
 window.saveGoalWeight = async () => {
   const weight = parseFloat(document.getElementById('goal-weight-input')?.value || 0);
-  if (weight <= 0) {
-    window.toast('Please enter a valid weight', 'error');
-    return;
-  }
-
+  if (!weight || weight <= 0) { window.toast('Enter a valid weight', 'error'); return; }
   try {
     await window.DB.updateClientGoal(window.session.id, { targetWeight: weight });
-    window.toast('Goal weight updated! 🎯');
-    if (window.clientAnalytics) {
-      await window.clientAnalytics.loadAnalytics();
-    }
-  } catch (err) {
-    window.toast('Failed to save goal weight', 'error');
-  }
+    window.toast('Goal saved! 🎯', 'success');
+    await window.clientAnalytics?.loadAnalytics();
+  } catch { window.toast('Failed to save goal', 'error'); }
 };
 
 window.updateWeight = async () => {
   const weight = parseFloat(document.getElementById('weight-input-field')?.value || 0);
-  if (weight <= 0) {
-    window.toast('Please enter a valid weight', 'error');
-    return;
-  }
-
+  if (!weight || weight <= 0) { window.toast('Enter a valid weight', 'error'); return; }
   try {
     await window.DB.addWeightRecord(window.session.id, weight);
-    window.toast('Weight updated! 📊');
-    if (window.clientAnalytics) {
-      await window.clientAnalytics.loadAnalytics();
+    window.toast('Weight logged! 📊', 'success');
+
+    // Goal-reached check
+    const analytics = window.clientAnalytics;
+    if (analytics) {
+      const goal = analytics.goal.targetWeight;
+      const purpose = analytics.goal.purpose;
+      const prevWeight = analytics.currentWeight;
+      if (goal && purpose) {
+        const reached = (purpose === 'lose' && weight <= goal && prevWeight > goal)
+          || (purpose === 'gain' && weight >= goal && prevWeight < goal);
+        if (reached && window.session?.coachId) {
+          const firstName = (window.session.name || '').split(' ')[0];
+          await window.DB.postToGlobalChannel?.(window.session.coachId, window.session.id,
+            `🏆 ${firstName} reached their goal weight of ${goal}kg!`);
+        }
+      }
     }
-  } catch (err) {
-    window.toast('Failed to update weight', 'error');
-  }
+
+    await analytics?.loadAnalytics();
+  } catch { window.toast('Failed to log weight', 'error'); }
 };
 
-// Initialize on load
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { ClientAnalytics };
 }
