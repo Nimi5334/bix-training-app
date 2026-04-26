@@ -28,6 +28,7 @@
     import { CoachMemberDetail } from './coach-member-detail.js';
     import { CoachDesign } from './coach-design.js';
     import { CoachAlerts } from './coach-alerts.js';
+    import { applyToDOM, setLang } from './i18n.js';
     // Auth guard: redirect if not logged in or not coach/admin
     auth.onAuthStateChanged(async (user) => {
       if (!user) {
@@ -88,6 +89,7 @@
     window.coachMemberDetail = coachMemberDetail;
     window.coachDesign = coachDesign;
     window.coachAlerts = coachAlerts;
+    window.setLang = setLang;
   </script>
   <style>
     .member-card {
@@ -155,29 +157,29 @@
     </div>
     <nav class="sidebar-nav">
       <div class="nav-item active" onclick="showPage('members')" data-page="members">
-        <span class="nav-icon">👥</span> Members
+        <span class="nav-icon">👥</span> <span data-i18n="navMembers">Members</span>
       </div>
       <div class="nav-item" onclick="showPage('preservation')" data-page="preservation">
-        <span class="nav-icon">🎯</span> Client Preservation
+        <span class="nav-icon">🎯</span> <span data-i18n="navPreservation">Client Preservation</span>
       </div>
       <div class="nav-item" onclick="showPage('tasks')" data-page="tasks">
-        <span class="nav-icon">📋</span> Tasks
+        <span class="nav-icon">📋</span> <span data-i18n="navTasks">Tasks</span>
       </div>
       <div class="nav-item" onclick="showPage('messages')" data-page="messages" style="position:relative">
-        <span class="nav-icon">💬</span> Messages
+        <span class="nav-icon">💬</span> <span data-i18n="navMessages">Messages</span>
         <span id="messages-unread-badge" style="display:none;position:absolute;right:14px;top:50%;transform:translateY(-50%);background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;min-width:18px;text-align:center"></span>
       </div>
       <div class="nav-item" onclick="showPage('leaderboard')" data-page="leaderboard">
-        <span class="nav-icon">🏆</span> Leaderboard
+        <span class="nav-icon">🏆</span> <span data-i18n="navLeaderboard">Leaderboard</span>
       </div>
       <div class="nav-item" onclick="showPage('billing')" data-page="billing">
-        <span class="nav-icon">💳</span> Billing
+        <span class="nav-icon">💳</span> <span data-i18n="navBilling">Billing</span>
       </div>
       <div class="nav-item" onclick="showPage('settings')" data-page="settings">
-        <span class="nav-icon">⚙️</span> Settings
+        <span class="nav-icon">⚙️</span> <span data-i18n="navSettings">Settings</span>
       </div>
       <div class="nav-item" onclick="showPage('design')" data-page="design">
-        <span class="nav-icon">🎨</span> Brand & Design
+        <span class="nav-icon">🎨</span> <span data-i18n="navDesign">Brand & Design</span>
       </div>
     </nav>
     <div class="sidebar-footer">
@@ -1767,6 +1769,7 @@ document.addEventListener('sessionReady', async function() {
 
   await applyBranding();
   await checkCoachMembership();
+  applyToDOM(document);
   showPage('members');
 
   if (window.innerWidth > 768 && localStorage.getItem('sidebar_collapsed') === '1') {

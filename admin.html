@@ -14,6 +14,7 @@
     import './db-extensions.js';
     import { AdminTesting } from './admin-testing.js';
     import { toast } from './toast.js';
+    import { applyToDOM, setLang } from './i18n.js';
     // Auth guard: redirect if not logged in or not admin
     auth.onAuthStateChanged(async (user) => {
       if (!user) {
@@ -60,7 +61,7 @@
         <span class="nav-icon">🤖</span> Testing Agents
       </div>
       <div class="nav-item" onclick="showPage('settings')" data-page="settings">
-        <span class="nav-icon">⚙️</span> Settings
+        <span class="nav-icon">⚙️</span> <span data-i18n="navSettings">Settings</span>
       </div>
     </nav>
     <div class="sidebar-footer">
@@ -343,6 +344,8 @@ document.getElementById('admin-username').textContent = '@' + session.username;
 document.getElementById('admin-avatar').textContent = session.name.charAt(0).toUpperCase();
 const _adminFirst = (session.name || '').split(' ')[0];
 document.getElementById('admin-welcome-name').textContent = `Welcome back, ${_adminFirst}! 👋`;
+window.setLang = setLang;
+applyToDOM(document);
 
 function logout() {
   auth.signOut().then(() => {

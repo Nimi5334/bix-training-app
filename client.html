@@ -23,6 +23,7 @@
     import { ClientAnalytics } from './client-analytics.js';
     import { ClientBilling } from './client-billing.js';
     import { Notifications } from './notifications.js';
+    import { applyToDOM, setLang } from './i18n.js';
     // Auth guard: redirect if not logged in or not client
     auth.onAuthStateChanged(async (user) => {
       if (!user) { location.replace('index.html'); return; }
@@ -87,23 +88,23 @@
     </div>
     <nav class="sidebar-nav">
       <div class="nav-item active" onclick="showPage('home')" data-page="home">
-        <span class="nav-icon">💪</span> My Program
+        <span class="nav-icon">💪</span> <span data-i18n="navProgram">My Program</span>
       </div>
       <div class="nav-item" onclick="showPage('progress')" data-page="progress">
-        <span class="nav-icon">📊</span> Analytics
+        <span class="nav-icon">📊</span> <span data-i18n="navProgress">Analytics</span>
       </div>
       <div class="nav-item" onclick="showPage('formcheck')" data-page="formcheck">
-        <span class="nav-icon">🎥</span> Form Check
+        <span class="nav-icon">🎥</span> <span data-i18n="navFormcheck">Form Check</span>
       </div>
       <div class="nav-item" onclick="showPage('messages')" data-page="messages">
-        <span class="nav-icon">💬</span> Chat
+        <span class="nav-icon">💬</span> <span data-i18n="navMessages">Chat</span>
         <span class="nav-pill" id="client-messages-unread"></span>
       </div>
       <div class="nav-item" onclick="showPage('billing')" data-page="billing">
-        <span class="nav-icon">💳</span> Billing
+        <span class="nav-icon">💳</span> <span data-i18n="navBillingClient">Billing</span>
       </div>
       <div class="nav-item" onclick="showPage('profile')" data-page="profile">
-        <span class="nav-icon">👤</span> Profile
+        <span class="nav-icon">👤</span> <span data-i18n="navProfile">Profile</span>
       </div>
     </nav>
     <div class="sidebar-footer">
@@ -353,6 +354,8 @@ document.addEventListener('sessionReady', async function() {
   } catch(e) { console.error('Membership check error:', e); }
 
   // ── Boot ──
+  window.setLang = setLang;
+  applyToDOM(document);
   showPage('home');
   document.getElementById('page-sub').textContent = 'Welcome back, ' + session.name.split(' ')[0] + '!';
   if (window.innerWidth > 768 && localStorage.getItem('sidebar_collapsed') === '1') {
