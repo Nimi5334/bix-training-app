@@ -27,6 +27,7 @@
     import { Notifications } from './notifications.js';
     import { CoachMemberDetail } from './coach-member-detail.js';
     import { CoachDesign } from './coach-design.js';
+    import { CoachAlerts } from './coach-alerts.js';
     // Auth guard: redirect if not logged in or not coach/admin
     auth.onAuthStateChanged(async (user) => {
       if (!user) {
@@ -57,7 +58,8 @@
     const coachBilling = new CoachBilling();
     const notifications = new Notifications();
     const coachMemberDetail = new CoachMemberDetail();
-    const coachDesign = new CoachDesign();
+    const coachDesign  = new CoachDesign();
+    const coachAlerts  = new CoachAlerts();
 
     coachMembers.init();
     coachPreservation.init();
@@ -65,6 +67,7 @@
     coachBilling.init();
     notifications.init();
     coachDesign.init();
+    coachAlerts.init();
 
     // Make globals available to legacy non-module scripts
     window.DB = DB;
@@ -84,6 +87,7 @@
     window.notifications = notifications;
     window.coachMemberDetail = coachMemberDetail;
     window.coachDesign = coachDesign;
+    window.coachAlerts = coachAlerts;
   </script>
   <style>
     .member-card {
@@ -224,6 +228,9 @@
             <div class="status-card-label">Expired</div>
           </div>
         </div>
+
+        <!-- Overtraining alert banner -->
+        <div id="overtraining-banner" style="display:none"></div>
 
         <!-- Roster controls: Add Member + LIVE pill -->
         <div class="roster-controls">
