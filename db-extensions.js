@@ -8,7 +8,7 @@
  */
 
 import { DB } from './db-firebase.js';
-import { getFirestore, collection, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, addDoc, serverTimestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, addDoc, serverTimestamp, orderBy, limit, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const db = getFirestore();
 
@@ -83,6 +83,43 @@ DB.sendGlobalMessage = async function(text, category = 'global') {
 };
 
 /**
+ * Global Channel (per-coach group chat)
+ * Doc: conversations/global_{coachId}
+ */
+DB.ensureGlobalChannel = async function(coachId) {
+  const ref = doc(db, 'conversations', `global_${coachId}`);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, { coachId, type: 'global', participants: [coachId], createdAt: serverTimestamp(), lastMessage: '', lastMessageAt: null });
+  }
+  return `global_${coachId}`;
+};
+
+DB.postToGlobalChannel = async function(coachId, senderId, text) {
+  try {
+    const convId = `global_${coachId}`;
+    const msgRef = doc(collection(db, 'conversations', convId, 'messages'));
+    await setDoc(msgRef, { senderId, text, createdAt: serverTimestamp() });
+    await updateDoc(doc(db, 'conversations', convId), { lastMessage: text, lastMessageAt: serverTimestamp() });
+    return msgRef.id;
+  } catch (err) {
+    console.error('postToGlobalChannel error:', err);
+    return null;
+  }
+};
+
+DB.subscribeToGlobalChannel = function(coachId, callback) {
+  const q = query(
+    collection(db, 'conversations', `global_${coachId}`, 'messages'),
+    orderBy('createdAt', 'asc'),
+    limit(100)
+  );
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data(), createdAt: d.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString() })));
+  });
+};
+
+/**
  * Tasks — Technique Checks & Payments
  */
 DB.getPendingTechniqueChecks = async function(coachId) {
@@ -139,10 +176,36 @@ DB.getPendingPayments = async function(coachId) {
 
 DB.acceptPayment = async function(paymentId) {
   try {
+    const snap = await getDoc(doc(db, 'paymentRequests', paymentId));
+    if (!snap.exists()) throw new Error('Payment not found');
+    const data = snap.data();
+
+    // Capture PayPal order if orderId present
+    if (data.orderId) {
+      const res = await fetch('/.netlify/functions/capture-paypal-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderID: data.orderId })
+      });
+      if (!res.ok) throw new Error('PayPal capture failed');
+    }
+
+    // Activate membership — extend from today or current expiry
+    const client = await DB.getUserById(data.clientId);
+    const base = client?.membershipExpiry && new Date(client.membershipExpiry) > new Date()
+      ? new Date(client.membershipExpiry) : new Date();
+    base.setMonth(base.getMonth() + (data.months || 1));
+
+    await updateDoc(doc(db, 'users', data.clientId), {
+      membershipStatus: 'active',
+      membershipExpiry: base.toISOString().split('T')[0]
+    });
+
     await updateDoc(doc(db, 'paymentRequests', paymentId), {
       status: 'completed',
       processedAt: serverTimestamp()
     });
+
     return true;
   } catch (err) {
     console.error('acceptPayment error:', err);
@@ -152,10 +215,21 @@ DB.acceptPayment = async function(paymentId) {
 
 DB.declinePayment = async function(paymentId) {
   try {
+    const snap = await getDoc(doc(db, 'paymentRequests', paymentId));
+    const data = snap.exists() ? snap.data() : {};
+
     await updateDoc(doc(db, 'paymentRequests', paymentId), {
       status: 'declined',
       processedAt: serverTimestamp()
     });
+
+    // Polite decline message to client
+    if (data.clientId) {
+      const session = DB.getSession();
+      await DB.sendAutoMessage(data.clientId,
+        'Hi, your renewal request could not be processed at this time. Please contact your coach.',
+        'payment-declined');
+    }
     return true;
   } catch (err) {
     console.error('declinePayment error:', err);

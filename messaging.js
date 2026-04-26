@@ -123,11 +123,15 @@ export async function renderInbox(containerId, currentUserId) {
   // Get list of conversation partners (clients for coach, coach for client)
   const currentUser = await DB.getUserById(currentUserId);
   let partners = [];
+  let globalCoachId = null;
   if (currentUser.role === 'coach' || currentUser.role === 'admin') {
     partners = await DB.getClientsByCoach(currentUserId);
+    globalCoachId = currentUserId;
+    await DB.ensureGlobalChannel?.(currentUserId);
   } else if (currentUser.role === 'client' && currentUser.coachId) {
     const coach = await DB.getUserById(currentUser.coachId);
     if (coach) partners = [coach];
+    globalCoachId = currentUser.coachId;
   }
 
   // Clean up previous subscription
@@ -146,7 +150,18 @@ export async function renderInbox(containerId, currentUserId) {
       return;
     }
 
-    el.innerHTML = partners.map(p => {
+    // Global channel row (always first)
+    const globalRow = globalCoachId ? `
+      <div class="bix-inbox-row" id="global-channel-row" style="border-left:3px solid var(--primary)">
+        <div class="bix-chat-avatar" style="background:linear-gradient(135deg,var(--primary),var(--primary-2));font-size:18px">🌐</div>
+        <div class="bix-inbox-info">
+          <div class="bix-inbox-name">Global Chat</div>
+          <div class="bix-inbox-preview">All members</div>
+        </div>
+      </div>
+    ` : '';
+
+    el.innerHTML = globalRow + partners.map(p => {
       const c = convsByPartner[p.id];
       const preview = c?.lastMessage || 'No messages yet — say hi!';
       const when = c?.lastMessageAt ? fmtRelative(c.lastMessageAt) : '';
@@ -164,7 +179,12 @@ export async function renderInbox(containerId, currentUserId) {
       `;
     }).join('');
 
-    el.querySelectorAll('.bix-inbox-row').forEach(row => {
+    if (globalCoachId) {
+      el.querySelector('#global-channel-row')?.addEventListener('click', () => {
+        openGlobalChat(currentUserId, globalCoachId);
+      });
+    }
+    el.querySelectorAll('.bix-inbox-row:not(#global-channel-row)').forEach(row => {
       row.addEventListener('click', () => {
         const partnerId = row.getAttribute('data-partner');
         const partnerName = unescape(row.getAttribute('data-partner-name'));
@@ -295,5 +315,65 @@ function unescape(str) {
     .replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
 }
 
-export const MessagingUI = { renderInbox, openChat, subscribeUnreadCount };
+// ── Global Channel Chat ──
+let globalUnsub = null;
+
+export function openGlobalChat(currentUserId, coachId) {
+  injectStyles();
+  let modal = document.getElementById('bix-chat-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'bix-chat-modal';
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal" style="max-width:540px;padding:0;overflow:hidden">
+        <div class="bix-chat-wrap">
+          <div class="bix-chat-header">
+            <div class="bix-chat-avatar" style="background:linear-gradient(135deg,var(--primary),var(--primary-2));font-size:18px">🌐</div>
+            <div style="flex:1"><div style="font-weight:700">Global Chat</div><div style="font-size:11px;color:var(--text-muted)">All members</div></div>
+            <button onclick="window.__bixCloseChat()" style="background:none;border:none;color:var(--text);font-size:24px;cursor:pointer;padding:4px 8px">×</button>
+          </div>
+          <div class="bix-chat-messages" id="bix-chat-messages"></div>
+          <div class="bix-chat-input-row">
+            <textarea class="bix-chat-input" id="bix-chat-input" rows="1" placeholder="Message everyone…"></textarea>
+            <button class="bix-chat-send" id="bix-chat-send">➤</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  modal.classList.add('open');
+
+  if (globalUnsub) { globalUnsub(); globalUnsub = null; }
+  const msgEl = document.getElementById('bix-chat-messages');
+  msgEl.innerHTML = '<div class="bix-empty">Loading…</div>';
+
+  globalUnsub = DB.subscribeToGlobalChannel(coachId, (msgs) => {
+    msgEl.innerHTML = msgs.map(m => {
+      const mine = m.senderId === currentUserId;
+      return `<div class="bix-msg ${mine ? 'mine' : 'theirs'}">
+        ${escape(m.text)}
+        <div class="bix-msg-time">${fmtTime(m.createdAt)}</div>
+      </div>`;
+    }).join('') || '<div class="bix-empty">No messages yet.</div>';
+    msgEl.scrollTop = msgEl.scrollHeight;
+  });
+
+  window.__bixCloseChat = () => {
+    modal.classList.remove('open');
+    if (globalUnsub) { globalUnsub(); globalUnsub = null; }
+  };
+
+  document.getElementById('bix-chat-send').onclick = async () => {
+    const inp = document.getElementById('bix-chat-input');
+    const text = inp.value.trim();
+    if (!text) return;
+    inp.value = '';
+    await DB.postToGlobalChannel(coachId, currentUserId, text);
+  };
+
+  modal.onclick = e => { if (e.target === modal) window.__bixCloseChat(); };
+}
+
+export const MessagingUI = { renderInbox, openChat, openGlobalChat, subscribeUnreadCount };
 if (typeof window !== 'undefined') window.MessagingUI = MessagingUI;

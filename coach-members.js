@@ -56,43 +56,49 @@ export class CoachMembers {
     return 'active';
   }
 
-  getActivityBadge(member) {
-    const now = new Date();
-    const lastWorkoutTime = new Date(member.lastWorkoutDate || 0);
-    const daysSinceWorkout = Math.floor((now - lastWorkoutTime) / (1000 * 60 * 60 * 24));
+  getActivityBadge(member, maxStreak) {
+    const now = Date.now();
+    const lastWorkout = new Date(member.lastWorkoutDate || 0).getTime();
+    const daysSinceWorkout = Math.floor((now - lastWorkout) / 86400000);
+    const expiry = new Date(member.membershipExpiry || 0).getTime();
+    const daysUntilExpiry = Math.floor((expiry - now) / 86400000);
+    const streak = member.workoutStreak || 0;
+    const status = this.getStatus(member);
 
-    // Check for power records (this would be tracked in member data)
+    if (status === 'expired' || (daysUntilExpiry <= 7 && daysUntilExpiry >= 0)) {
+      return { badge: 'Renew', color: 'badge-renew' };
+    }
     if (member.recentPowerRecords && member.recentPowerRecords.length > 0) {
       return { badge: 'New PR', color: 'badge-pr' };
     }
-
-    // Calculate streak
-    if (member.workoutStreak) {
-      if (member.workoutStreak >= 7) {
-        return { badge: 'On fire', color: 'badge-on-fire' };
-      }
-      return { badge: `${member.workoutStreak}d streak`, color: 'badge-streak' };
+    if (status === 'at-risk') {
+      const days = Math.max(daysSinceWorkout, 1);
+      return { badge: `${days}d silent`, color: 'badge-silent' };
     }
-
-    // At-risk status
-    if (this.getStatus(member) === 'at-risk') {
-      return { badge: `${daysSinceWorkout}d silent`, color: 'badge-silent' };
+    if (streak > 0 && streak === maxStreak && maxStreak >= 7) {
+      return { badge: 'Best streak', color: 'badge-streak' };
     }
-
-    // Check membership expiring
-    const expiryDate = new Date(member.membershipExpiry);
-    const daysUntilExpiry = Math.floor((expiryDate - now) / (1000 * 60 * 60 * 24));
-    if (daysUntilExpiry <= 7) {
-      return { badge: 'Renew', color: 'badge-renew' };
+    if (streak >= 7) {
+      return { badge: 'On fire', color: 'badge-on-fire' };
     }
-
-    return { badge: 'Best streak', color: 'badge-streak' };
+    if (streak > 0) {
+      return { badge: `${streak}d streak`, color: 'badge-streak' };
+    }
+    return { badge: '—', color: 'badge-silent' };
   }
 
-  getAvatarColor(name) {
-    const colors = ['#7c3aed', '#3498db', '#2ecc71', '#f59e0b', '#ef4444', '#06b6d4'];
-    const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[hash % colors.length];
+  getAvatarGradient(uid) {
+    const pairs = [
+      ['#a78bfa', '#6d28d9'], // purple
+      ['#5eead4', '#0d9488'], // teal
+      ['#c084fc', '#6b21a8'], // magenta
+      ['#60a5fa', '#1e40af'], // blue
+      ['#fb7185', '#be123c'], // pink
+    ];
+    const key = String(uid || '');
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+    return pairs[hash % pairs.length];
   }
 
   renderMembers() {
@@ -108,25 +114,36 @@ export class CoachMembers {
     }
 
     document.getElementById('no-members').style.display = 'none';
+
+    const maxStreak = this.members.reduce((m, x) => Math.max(m, x.workoutStreak || 0), 0);
+    const now = Date.now();
+
     container.innerHTML = filtered.map(member => {
       const status = this.getStatus(member);
-      const { badge, color } = this.getAvatarColor(member.name);
-      const { badge: activityBadge, color: badgeColor } = this.getActivityBadge(member);
-      const initials = member.name.split(' ').map(n => n[0]).join('').toUpperCase();
-      const shouldShowWarning = status === 'at-risk' || status === 'expired';
+      const { badge, color } = this.getActivityBadge(member, maxStreak);
+      const [c1, c2] = this.getAvatarGradient(member.id);
+      const name = member.name || '';
+      const initials = name.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
+      const showWarning = status === 'at-risk' || status === 'expired';
+
+      const lastWorkout = new Date(member.lastWorkoutDate || 0).getTime();
+      const daysSinceWorkout = Math.floor((now - lastWorkout) / 86400000);
+      const streak = member.workoutStreak || 0;
+      const activityLine = streak > 0
+        ? `🔥 ${streak}d streak`
+        : (daysSinceWorkout > 365 ? '— no activity' : `— offline ${daysSinceWorkout}d`);
 
       return `
         <div class="member-card" onclick="openMemberDetail('${member.id}')">
-          ${shouldShowWarning ? `<div class="warning-icon">⚠️</div>` : ''}
-          <div class="member-avatar" style="background:${this.getAvatarColor(member.name)}">${initials}</div>
-          <div class="member-info">
-            <div class="member-name">${member.name}</div>
-            <div class="member-activity">
-              <span>🔥</span>
-              <span id="streak-${member.id}">${member.workoutStreak || 0}d streak</span>
-            </div>
+          <div class="member-avatar" style="background:linear-gradient(135deg,${c1},${c2})">
+            ${initials}
+            ${showWarning ? '<span class="warning-overlay">!</span>' : ''}
           </div>
-          <div class="member-badge ${badgeColor}">${activityBadge}</div>
+          <div class="member-info">
+            <div class="member-name">${name}</div>
+            <div class="member-activity"><span id="streak-${member.id}">${activityLine}</span></div>
+          </div>
+          <div class="member-badge ${color}">${badge}</div>
         </div>
       `;
     }).join('');

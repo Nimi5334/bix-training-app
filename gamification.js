@@ -29,17 +29,19 @@ function injectStyles() {
     .badge-name { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
     .badge-desc { font-size: 10px; color: var(--text-muted, #888); line-height: 1.3; }
     .streak-banner {
-      background: linear-gradient(135deg, #e8442a22, #f59e0b22);
-      border: 1px solid #e8442a;
-      border-radius: 14px;
-      padding: 18px 22px;
+      background: linear-gradient(135deg, #e85d04, #f48c06);
+      border-radius: 16px;
+      padding: 20px 22px;
       display: flex;
       align-items: center;
       gap: 16px;
+      color: #fff;
+      box-shadow: 0 8px 32px rgba(232,93,4,.35);
+      margin-bottom: 16px;
     }
-    .streak-banner .flame { font-size: 40px; }
-    .streak-banner .count { font-size: 30px; font-weight: 800; color: var(--primary, #e8442a); }
-    .streak-banner .label { font-size: 11px; color: var(--text-muted, #888); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+    .streak-banner .flame { font-size: 36px; }
+    .streak-banner .count { font-size: 32px; font-weight: 800; color: #fff; }
+    .streak-banner .label { font-size: 11px; color: rgba(255,255,255,.75); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
     .leaderboard-row {
       display: flex; align-items: center; gap: 12px;
       padding: 10px 14px;

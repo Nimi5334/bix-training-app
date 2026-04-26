@@ -25,6 +25,7 @@
     import { CoachTasks } from './coach-tasks.js';
     import { CoachBilling } from './coach-billing.js';
     import { Notifications } from './notifications.js';
+    import { CoachMemberDetail } from './coach-member-detail.js';
     // Auth guard: redirect if not logged in or not coach/admin
     auth.onAuthStateChanged(async (user) => {
       if (!user) {
@@ -54,6 +55,7 @@
     const coachTasks = new CoachTasks();
     const coachBilling = new CoachBilling();
     const notifications = new Notifications();
+    const coachMemberDetail = new CoachMemberDetail();
 
     coachMembers.init();
     coachPreservation.init();
@@ -77,6 +79,7 @@
     window.coachTasks = coachTasks;
     window.coachBilling = coachBilling;
     window.notifications = notifications;
+    window.coachMemberDetail = coachMemberDetail;
   </script>
   <style>
     .member-card {
@@ -111,6 +114,25 @@
     .section-divider::after {
       content: ''; flex: 1; height: 1px; background: var(--border);
     }
+    /* Member Detail */
+    .mdd-tab {
+      padding: 10px 20px; border: none; background: none; cursor: pointer;
+      font-size: 14px; font-weight: 600; color: var(--text-muted);
+      border-bottom: 3px solid transparent; transition: all .15s; margin-bottom: -1px;
+    }
+    .mdd-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .mdd-stat {
+      background: var(--surface2); border-radius: var(--r-md); padding: 16px;
+      text-align: center; border: 1px solid var(--border);
+    }
+    .mdd-stat-num   { font-size: 24px; font-weight: 700; }
+    .mdd-stat-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .5px; }
+    .mdd-alert {
+      border-radius: var(--r-md); padding: 10px 14px; font-size: 13px;
+      font-weight: 600; margin-bottom: 12px; border: 1px solid;
+    }
+    .mdd-alert.red   { background: rgba(239,68,68,.08); border-color: rgba(239,68,68,.25); color: #f87171; }
+    .mdd-alert.amber { background: rgba(245,158,11,.08); border-color: rgba(245,158,11,.25); color: #fbbf24; }
   </style>
 </head>
 <body>
@@ -175,6 +197,11 @@
     <!-- ══ MEMBERS ══ -->
     <div class="page active" id="page-members">
       <div style="max-width:1000px">
+        <!-- Welcome banner -->
+        <div class="welcome-banner">
+          <h2 id="coach-welcome-name">Welcome back! 👋</h2>
+          <p>Here's what's happening with your roster today.</p>
+        </div>
         <!-- Status Cards -->
         <div class="status-cards">
           <div class="status-card active">
@@ -191,18 +218,18 @@
           </div>
         </div>
 
-        <!-- Header -->
-        <div style="display:flex;justify-content:space-between;align-items:center;margin:24px 0 16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
-          <h2 style="font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Your Roster</h2>
-          <button class="btn btn-primary" style="padding:8px 14px;font-size:13px" onclick="openAddMember()">+ Add Member</button>
+        <!-- Roster controls: Add Member + LIVE pill -->
+        <div class="roster-controls">
+          <button class="btn btn-secondary roster-add" onclick="openAddMember()">+ Add Member</button>
+          <span class="live-pill">LIVE</span>
         </div>
 
-        <!-- Live Filter Toggle (for future use) -->
-        <div style="display:flex;gap:8px;margin-bottom:16px">
-          <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px" id="filter-all" onclick="filterMembers('all')">All</button>
-          <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px" id="filter-active" onclick="filterMembers('active')">Active</button>
-          <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px" id="filter-atrisk" onclick="filterMembers('at-risk')">At Risk</button>
-          <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px" id="filter-expired" onclick="filterMembers('expired')">Expired</button>
+        <!-- Filter chips -->
+        <div class="roster-filters">
+          <button class="btn btn-secondary" id="filter-all" onclick="filterMembers('all')">All</button>
+          <button class="btn btn-secondary" id="filter-active" onclick="filterMembers('active')">Active</button>
+          <button class="btn btn-secondary" id="filter-atrisk" onclick="filterMembers('at-risk')">At Risk</button>
+          <button class="btn btn-secondary" id="filter-expired" onclick="filterMembers('expired')">Expired</button>
         </div>
 
         <!-- Members List -->
@@ -212,6 +239,39 @@
 
         <div id="no-members" style="padding:40px 0;text-align:center;color:var(--text-muted)">
           <p style="font-size:14px">No members yet. Click "+ Add Member" to get started.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MEMBER DETAIL ══ -->
+    <div class="page" id="page-member-detail">
+      <div style="max-width:800px">
+        <!-- Back + header -->
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:24px">
+          <button class="btn btn-secondary btn-sm" onclick="showPage('members')">← Back</button>
+          <div id="mdd-avatar" class="member-avatar" style="width:48px;height:48px;font-size:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">
+            <span id="mdd-initials"></span>
+          </div>
+          <div>
+            <div id="mdd-name" style="font-size:18px;font-weight:700"></div>
+            <div id="mdd-username" style="font-size:13px;color:var(--text-muted)"></div>
+          </div>
+        </div>
+
+        <!-- Sub-tabs -->
+        <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:0">
+          <button id="mdd-tab-program" class="mdd-tab active" onclick="window.coachMemberDetail?.switchTab('program')">Program</button>
+          <button id="mdd-tab-status"  class="mdd-tab"        onclick="window.coachMemberDetail?.switchTab('status')">Status</button>
+        </div>
+
+        <!-- Program panel -->
+        <div id="mdd-panel-program">
+          <div id="mdd-program-content"></div>
+        </div>
+
+        <!-- Status panel -->
+        <div id="mdd-panel-status" style="display:none">
+          <div id="mdd-status-content"></div>
         </div>
       </div>
     </div>
@@ -687,18 +747,39 @@ function logout() {
 let pageInfo = {};
 function initPageInfo() {
   pageInfo = {
-    members:     ['Members',     'Manage active & expired memberships'],
-    messages:    ['Messages',    'Chat with your clients in real time'],
-    formcheck:   ['Form Check',  'Review video submissions & send feedback'],
-    leaderboard: ['Leaderboard', 'Your clients ranked by workout volume'],
-    billing:     ['Billing',     'Renew member memberships'],
-    settings:    ['Settings',    'Customize your dashboard appearance'],
+    members:       ['Members',       'Manage active & expired memberships'],
+    preservation:  ['Preservation',  'At-risk alerts & retention actions'],
+    tasks:         ['Tasks',         'Pending technique checks & payment requests'],
+    messages:      ['Messages',      'Chat with your clients in real time'],
+    formcheck:     ['Form Check',    'Review video submissions & send feedback'],
+    leaderboard:   ['Leaderboard',   'Your clients ranked by workout volume'],
+    billing:       ['Billing',       'Renew member memberships'],
+    settings:      ['Settings',      'Customize your dashboard appearance'],
+    'member-detail': ['Member',      'Program & status overview'],
   };
 }
+function filterMembers(filter) {
+  if (window.coachMembers) {
+    window.coachMembers.currentFilter = filter;
+    window.coachMembers.renderMembers();
+  }
+  // Update active chip
+  ['all','active','atrisk','expired'].forEach(f => {
+    const btn = document.getElementById('filter-' + f);
+    if (btn) btn.style.background = f === filter.replace('-','') ? 'var(--primary)' : '';
+  });
+}
+
+function openMemberDetail(memberId) {
+  if (window.coachMemberDetail) window.coachMemberDetail.open(memberId);
+}
+
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === name));
-  document.getElementById('page-' + name).classList.add('active');
+  const pageEl = document.getElementById('page-' + name);
+  if (pageEl) pageEl.classList.add('active');
+  if (!pageInfo[name]) return;
   document.getElementById('page-title').textContent = pageInfo[name][0];
   document.getElementById('page-sub').textContent   = pageInfo[name][1];
   if (name === 'members')     renderMembers();
@@ -1660,6 +1741,8 @@ document.addEventListener('sessionReady', async function() {
   document.getElementById('coach-name').textContent     = session.name;
   document.getElementById('coach-username').textContent = '@' + session.username;
   document.getElementById('coach-avatar').textContent   = session.name.charAt(0).toUpperCase();
+  const firstName = (session.name || '').split(' ')[0];
+  document.getElementById('coach-welcome-name').textContent = `Welcome back, ${firstName}! 👋`;
 
   await applyBranding();
   await checkCoachMembership();
