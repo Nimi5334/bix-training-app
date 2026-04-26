@@ -334,11 +334,13 @@ document.addEventListener('sessionReady', async function() {
     const me    = await DB.getUserById(session.id);
     const coach = me && me.coachId ? await DB.getUserById(me.coachId) : null;
     const bgColor     = (coach && coach.applyColorToClients && coach.bgColor)     ? coach.bgColor     : (s.bgColor     || '#0f0f0f');
-    const accentColor = (coach && coach.applyColorToClients && coach.accentColor) ? coach.accentColor : (s.accentColor || '#e8442a');
+    const accentColor = (coach?.brand?.accent) ? coach.brand.accent
+      : (coach && coach.applyColorToClients && coach.accentColor) ? coach.accentColor : (s.accentColor || '#7850ff');
+    const brandName   = coach?.brand?.name || s.businessName || 'Bix';
     document.documentElement.style.setProperty('--bg',           bgColor);
     document.documentElement.style.setProperty('--primary',      accentColor);
     document.documentElement.style.setProperty('--primary-dark', accentColor);
-    document.getElementById('sidebar-biz').innerHTML = `<span style="color:var(--primary)">${s.businessName || 'Bix'}</span>`;
+    document.getElementById('sidebar-biz').innerHTML = `<span style="color:var(--primary)">${brandName}</span>`;
     document.title = (s.businessName || 'Bix') + ' – My Training';
   } catch(e) { console.error('Branding error:', e); }
 

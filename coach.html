@@ -26,6 +26,7 @@
     import { CoachBilling } from './coach-billing.js';
     import { Notifications } from './notifications.js';
     import { CoachMemberDetail } from './coach-member-detail.js';
+    import { CoachDesign } from './coach-design.js';
     // Auth guard: redirect if not logged in or not coach/admin
     auth.onAuthStateChanged(async (user) => {
       if (!user) {
@@ -56,12 +57,14 @@
     const coachBilling = new CoachBilling();
     const notifications = new Notifications();
     const coachMemberDetail = new CoachMemberDetail();
+    const coachDesign = new CoachDesign();
 
     coachMembers.init();
     coachPreservation.init();
     coachTasks.init();
     coachBilling.init();
     notifications.init();
+    coachDesign.init();
 
     // Make globals available to legacy non-module scripts
     window.DB = DB;
@@ -80,6 +83,7 @@
     window.coachBilling = coachBilling;
     window.notifications = notifications;
     window.coachMemberDetail = coachMemberDetail;
+    window.coachDesign = coachDesign;
   </script>
   <style>
     .member-card {
@@ -168,6 +172,9 @@
       <div class="nav-item" onclick="showPage('settings')" data-page="settings">
         <span class="nav-icon">⚙️</span> Settings
       </div>
+      <div class="nav-item" onclick="showPage('design')" data-page="design">
+        <span class="nav-icon">🎨</span> Brand & Design
+      </div>
     </nav>
     <div class="sidebar-footer">
       <div class="user-info">
@@ -241,6 +248,11 @@
           <p style="font-size:14px">No members yet. Click "+ Add Member" to get started.</p>
         </div>
       </div>
+    </div>
+
+    <!-- ══ BRAND & DESIGN ══ -->
+    <div class="page" id="page-design">
+      <div id="design-host"></div>
     </div>
 
     <!-- ══ MEMBER DETAIL ══ -->
@@ -755,6 +767,7 @@ function initPageInfo() {
     leaderboard:   ['Leaderboard',   'Your clients ranked by workout volume'],
     billing:       ['Billing',       'Renew member memberships'],
     settings:      ['Settings',      'Customize your dashboard appearance'],
+    design:        ['Brand & Design', 'Custom gym name and accent color (Pro)'],
     'member-detail': ['Member',      'Program & status overview'],
   };
 }
@@ -788,6 +801,7 @@ function showPage(name) {
   if (name === 'messages')    window.MessagingUI?.renderInbox('messages-inbox', session.id);
   if (name === 'formcheck')   window.VideoFormCheck?.renderCoachQueue('vc-coach-list', session.id);
   if (name === 'leaderboard') window.Gamification?.renderCoachLeaderboard('coach-leaderboard', session.id);
+  if (name === 'design')      window.coachDesign?._render();
 }
 
 // ── Modals ──
