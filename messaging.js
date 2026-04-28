@@ -320,10 +320,10 @@ let globalUnsub = null;
 
 export function openGlobalChat(currentUserId, coachId) {
   injectStyles();
-  let modal = document.getElementById('bix-chat-modal');
+  let modal = document.getElementById('bix-global-chat-modal');
   if (!modal) {
     modal = document.createElement('div');
-    modal.id = 'bix-chat-modal';
+    modal.id = 'bix-global-chat-modal';
     modal.className = 'modal-overlay';
     modal.innerHTML = `
       <div class="modal" style="max-width:540px;padding:0;overflow:hidden">

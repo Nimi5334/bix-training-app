@@ -217,15 +217,6 @@ window.filterMembers = (filter) => {
   }
 };
 
-window.openMemberDetail = async (memberId) => {
-  if (!window.coachMembers) return;
-  const member = window.coachMembers.members.find(m => m.id === memberId);
-  if (!member) return;
-
-  // TODO: Open member detail modal with program, status, warnings
-  window.toast(`Opening ${member.name}'s details...`);
-};
-
 // Initialize on load
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { CoachMembers };
