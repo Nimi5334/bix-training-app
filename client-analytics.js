@@ -34,7 +34,6 @@ export class ClientAnalytics {
     const host = document.getElementById('analytics-host');
     if (!host) return;
 
-    const stats = this._calcStats();
     const purposeOptions = [
       { key: 'lose',     label: 'Lose Weight' },
       { key: 'gain',     label: 'Gain Weight' },
@@ -66,42 +65,12 @@ export class ClientAnalytics {
         </div>
       </div>
 
-      <!-- Stats tiles -->
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
-        <div style="background:rgba(120,80,255,.07);border:1px solid rgba(120,80,255,.2);border-radius:var(--r-md);padding:14px;text-align:center">
-          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Current</div>
-          <div style="font-size:22px;font-weight:800;color:#a488ff">${stats.current}</div>
-          <div style="font-size:11px;color:var(--text-muted)">kg</div>
-        </div>
-        <div style="background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:var(--r-md);padding:14px;text-align:center">
-          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Goal</div>
-          <div style="font-size:22px;font-weight:800;color:#34d399">${this.goal.targetWeight || '—'}</div>
-          <div style="font-size:11px;color:var(--text-muted)">kg</div>
-        </div>
-        <div style="background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:var(--r-md);padding:14px;text-align:center">
-          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">To Go</div>
-          <div style="font-size:22px;font-weight:800;color:#fbbf24">${stats.remaining}</div>
-          <div style="font-size:11px;color:var(--text-muted)">kg</div>
-        </div>
-      </div>
-
       <!-- SVG chart -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px;margin-bottom:16px">
         <div style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:14px">Weight History</div>
         ${this._renderSvgChart()}
       </div>
 
-      <!-- Update weight -->
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px">
-        <div style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px">Log Weight</div>
-        <div style="display:flex;gap:8px">
-          <input type="number" id="weight-input-field" placeholder="kg" step="0.1" inputmode="decimal"
-            value="${this.currentWeight || ''}"
-            style="flex:1;padding:10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface2);color:var(--text);font-size:14px" />
-          <button class="btn btn-primary" onclick="window.updateWeight()" style="padding:10px 20px;font-weight:700">Update</button>
-        </div>
-        <p style="font-size:12px;color:var(--text-muted);margin-top:8px">Monthly reminder to keep your progress up to date.</p>
-      </div>
     `;
   }
 
@@ -181,15 +150,6 @@ export class ClientAnalytics {
     `;
   }
 
-  _calcStats() {
-    const current = this.currentWeight || this.weightData[this.weightData.length - 1]?.weight || 0;
-    const goal = this.goal.targetWeight || current;
-    return {
-      current: current.toFixed(1),
-      remaining: Math.abs(current - goal).toFixed(1),
-    };
-  }
-
   _checkMonthlyReminder() {
     if (!this.weightData.length) return;
     const lastEntry = new Date(this.weightData[this.weightData.length - 1].date);
@@ -217,33 +177,6 @@ window.saveGoalWeight = async () => {
   } catch { window.toast('Failed to save goal', 'error'); }
 };
 
-window.updateWeight = async () => {
-  const weight = parseFloat(document.getElementById('weight-input-field')?.value || 0);
-  if (!weight || weight <= 0) { window.toast('Enter a valid weight', 'error'); return; }
-  try {
-    await window.DB.addWeightRecord(window.session.id, weight);
-    window.toast('Weight logged! 📊', 'success');
-
-    // Goal-reached check
-    const analytics = window.clientAnalytics;
-    if (analytics) {
-      const goal = analytics.goal.targetWeight;
-      const purpose = analytics.goal.purpose;
-      const prevWeight = analytics.currentWeight;
-      if (goal && purpose) {
-        const reached = (purpose === 'lose' && weight <= goal && prevWeight > goal)
-          || (purpose === 'gain' && weight >= goal && prevWeight < goal);
-        if (reached && window.session?.coachId) {
-          const firstName = (window.session.name || '').split(' ')[0];
-          await window.DB.postToGlobalChannel?.(window.session.coachId, window.session.id,
-            `🏆 ${firstName} reached their goal weight of ${goal}kg!`);
-        }
-      }
-    }
-
-    await analytics?.loadAnalytics();
-  } catch { window.toast('Failed to log weight', 'error'); }
-};
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { ClientAnalytics };

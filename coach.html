@@ -19,9 +19,8 @@
     import { Analytics } from './analytics.js';
     import { Gamification } from './gamification.js';
     import { VideoFormCheck } from './video-form-check.js';
-    import { Onboarding } from './onboarding.js';
     import { CoachMembers } from './coach-members.js';
-    import { CoachPreservation } from './coach-preservation.js';
+    import { CoachInsights } from './coach-insights.js';
     import { CoachTasks } from './coach-tasks.js';
     import { CoachBilling } from './coach-billing.js';
     import { Notifications } from './notifications.js';
@@ -42,8 +41,11 @@
       }
       window.session = userData;
       document.dispatchEvent(new CustomEvent('sessionReady'));
-      // Show onboarding on first login (non-blocking)
-      setTimeout(() => Onboarding.maybeShow(userData.id), 400);
+      // Daily + weekly insight push (browser notifications)
+      setTimeout(() => {
+        coachInsights.runDaily(userData.id).catch(()=>{});
+        coachInsights.runWeekly(userData.id).catch(()=>{});
+      }, 1500);
       // Wire messages unread badge
       subscribeUnreadCount(userData.id, (n) => {
         const b = document.getElementById('messages-unread-badge');
@@ -54,7 +56,7 @@
     });
     // Initialize feature modules
     const coachMembers = new CoachMembers();
-    const coachPreservation = new CoachPreservation();
+    const coachInsights = new CoachInsights();
     const coachTasks = new CoachTasks();
     const coachBilling = new CoachBilling();
     const notifications = new Notifications();
@@ -63,7 +65,6 @@
     const coachAlerts  = new CoachAlerts();
 
     coachMembers.init();
-    coachPreservation.init();
     coachTasks.init();
     coachBilling.init();
     notifications.init();
@@ -79,10 +80,9 @@
     window.Analytics = Analytics;
     window.Gamification = Gamification;
     window.VideoFormCheck = VideoFormCheck;
-    window.Onboarding = Onboarding;
     window.subscribeUnreadCount = subscribeUnreadCount;
     window.coachMembers = coachMembers;
-    window.coachPreservation = coachPreservation;
+    window.coachInsights = coachInsights;
     window.coachTasks = coachTasks;
     window.coachBilling = coachBilling;
     window.notifications = notifications;
@@ -159,18 +159,12 @@
       <div class="nav-item active" onclick="showPage('members')" data-page="members">
         <span class="nav-icon">👥</span> <span data-i18n="navMembers">Members</span>
       </div>
-      <div class="nav-item" onclick="showPage('preservation')" data-page="preservation">
-        <span class="nav-icon">🎯</span> <span data-i18n="navPreservation">Client Preservation</span>
-      </div>
       <div class="nav-item" onclick="showPage('tasks')" data-page="tasks">
         <span class="nav-icon">📋</span> <span data-i18n="navTasks">Tasks</span>
       </div>
       <div class="nav-item" onclick="showPage('messages')" data-page="messages" style="position:relative">
         <span class="nav-icon">💬</span> <span data-i18n="navMessages">Messages</span>
         <span id="messages-unread-badge" style="display:none;position:absolute;right:14px;top:50%;transform:translateY(-50%);background:var(--primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;min-width:18px;text-align:center"></span>
-      </div>
-      <div class="nav-item" onclick="showPage('leaderboard')" data-page="leaderboard">
-        <span class="nav-icon">🏆</span> <span data-i18n="navLeaderboard">Leaderboard</span>
       </div>
       <div class="nav-item" onclick="showPage('billing')" data-page="billing">
         <span class="nav-icon">💳</span> <span data-i18n="navBilling">Billing</span>
@@ -266,69 +260,26 @@
 
     <!-- ══ MEMBER DETAIL ══ -->
     <div class="page" id="page-member-detail">
-      <div style="max-width:800px">
-        <!-- Back + header -->
-        <div style="display:flex;align-items:center;gap:14px;margin-bottom:24px">
-          <button class="btn btn-secondary btn-sm" onclick="showPage('members')">← Back</button>
-          <div id="mdd-avatar" class="member-avatar" style="width:48px;height:48px;font-size:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">
-            <span id="mdd-initials"></span>
-          </div>
-          <div>
-            <div id="mdd-name" style="font-size:18px;font-weight:700"></div>
-            <div id="mdd-username" style="font-size:13px;color:var(--text-muted)"></div>
-          </div>
-        </div>
-
-        <!-- Sub-tabs -->
-        <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:0">
-          <button id="mdd-tab-program" class="mdd-tab active" onclick="window.coachMemberDetail?.switchTab('program')">Program</button>
-          <button id="mdd-tab-status"  class="mdd-tab"        onclick="window.coachMemberDetail?.switchTab('status')">Status</button>
-        </div>
-
-        <!-- Program panel -->
-        <div id="mdd-panel-program">
-          <div id="mdd-program-content"></div>
-        </div>
-
-        <!-- Status panel -->
-        <div id="mdd-panel-status" style="display:none">
-          <div id="mdd-status-content"></div>
-        </div>
-      </div>
+      <div id="member-detail-host" style="max-width:900px"></div>
     </div>
 
     <!-- ══ MESSAGES ══ -->
     <div class="page" id="page-messages">
-      <div style="display:grid;grid-template-columns:minmax(280px,340px) 1fr;gap:20px;max-width:1100px;align-items:start">
-        <div class="card" style="padding:0;overflow:hidden">
-          <div style="padding:14px 18px;border-bottom:1px solid var(--border);font-weight:700;font-size:14px">Conversations</div>
-          <div id="messages-inbox" style="max-height:70vh;overflow-y:auto"></div>
+      <div style="max-width:1100px">
+        <!-- Member picker / search -->
+        <div class="msg-picker">
+          <input id="msg-search" type="text" placeholder="🔍 Search or type a member's name to chat…" autocomplete="off" />
+          <div id="msg-suggest" class="msg-suggest"></div>
         </div>
-        <div class="card" style="text-align:center;padding:40px 20px;color:var(--text-muted)">
-          <div style="font-size:42px;margin-bottom:12px">💬</div>
-          <h3 style="font-size:15px;font-weight:700;margin-bottom:6px">Select a conversation</h3>
-          <p style="font-size:13px">Click a client on the left to open a chat.</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- ══ CLIENT PRESERVATION ══ -->
-    <div class="page" id="page-preservation">
-      <div style="max-width:900px">
-        <!-- Daily Insight Card -->
-        <div class="daily-insight">
-          <div class="daily-insight-icon">✨</div>
-          <div class="daily-insight-content">
-            <div class="daily-insight-title">Daily Insight · 07:24</div>
-            <div class="daily-insight-text" id="preservation-insight">3 clients haven't logged in 5+ days. A quick nudge today recovers 78% of them.</div>
+        <div style="display:grid;grid-template-columns:minmax(280px,340px) 1fr;gap:20px;align-items:start">
+          <div class="card" style="padding:0;overflow:hidden">
+            <div style="padding:14px 18px;border-bottom:1px solid var(--border);font-weight:700;font-size:14px">Conversations</div>
+            <div id="messages-inbox" style="max-height:70vh;overflow-y:auto"></div>
           </div>
-        </div>
-
-        <!-- Retention Radar Section -->
-        <div style="margin-top:24px">
-          <h2 style="font-size:16px;font-weight:700;margin-bottom:16px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted)">Retention Radar</h2>
-          <div class="retention-radar" id="retention-radar-list">
-            <!-- Populated by JavaScript -->
+          <div class="card" id="messages-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-muted)">
+            <div style="font-size:42px;margin-bottom:12px">💬</div>
+            <h3 style="font-size:15px;font-weight:700;margin-bottom:6px">Select a conversation</h3>
+            <p style="font-size:13px">Search above or click a client on the left.</p>
           </div>
         </div>
       </div>
@@ -377,14 +328,6 @@
       <div style="max-width:800px">
         <div class="section-divider">📥 Pending Reviews</div>
         <div id="vc-coach-list"></div>
-      </div>
-    </div>
-
-    <!-- ══ LEADERBOARD ══ -->
-    <div class="page" id="page-leaderboard">
-      <div style="max-width:720px">
-        <div class="section-divider">🏆 Client Leaderboard · Ranked by Total Workouts</div>
-        <div id="coach-leaderboard"></div>
       </div>
     </div>
 
@@ -521,28 +464,6 @@
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button class="btn btn-secondary" onclick="closeModal('modal-technique-review')">Cancel</button>
       <button class="btn btn-primary" onclick="submitTechniqueReview()">Send Feedback</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══ MODAL: Edit & Send Preservation Message ══ -->
-<div class="modal-overlay" id="modal-preservation-message">
-  <div class="modal" style="max-width:600px">
-    <div class="modal-header">
-      <h2 id="preservation-modal-title">Send Message</h2>
-      <button class="modal-close" onclick="closeModal('modal-preservation-message')">×</button>
-    </div>
-    <input type="hidden" id="preservation-client-id" />
-    <input type="hidden" id="preservation-action-type" />
-
-    <div style="margin-bottom:12px">
-      <label style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted)">Message</label>
-      <textarea id="preservation-message-text" class="message-editor" placeholder="Edit your message here..."></textarea>
-    </div>
-
-    <div style="display:flex;gap:10px;justify-content:flex-end">
-      <button class="btn btn-secondary" onclick="closeModal('modal-preservation-message')">Cancel</button>
-      <button class="btn btn-primary" onclick="sendPreservationMessage()">Send to Chat</button>
     </div>
   </div>
 </div>
@@ -769,12 +690,10 @@ let pageInfo = {};
 function initPageInfo() {
   pageInfo = {
     members:       ['Members',       'Manage active & expired memberships'],
-    preservation:  ['Preservation',  'At-risk alerts & retention actions'],
     tasks:         ['Tasks',         'Pending technique checks & payment requests'],
     messages:      ['Messages',      'Chat with your clients in real time'],
     formcheck:     ['Form Check',    'Review video submissions & send feedback'],
-    leaderboard:   ['Leaderboard',   'Your clients ranked by workout volume'],
-    billing:       ['Billing',       'Renew member memberships'],
+    billing:       ['Billing',       'Renew your membership'],
     settings:      ['Settings',      'Customize your dashboard appearance'],
     design:        ['Brand & Design', 'Custom gym name and accent color (Pro)'],
     'member-detail': ['Member',      'Program & status overview'],
@@ -807,9 +726,11 @@ function showPage(name) {
   if (name === 'members')     renderMembers();
   if (name === 'billing')     renderBilling();
   if (name === 'settings')    loadCoachSettings();
-  if (name === 'messages')    window.MessagingUI?.renderInbox('messages-inbox', session.id);
+  if (name === 'messages') {
+    window.MessagingUI?.renderInbox('messages-inbox', session.id);
+    window.MessagingUI?.wirePicker?.(session.id);
+  }
   if (name === 'formcheck')   window.VideoFormCheck?.renderCoachQueue('vc-coach-list', session.id);
-  if (name === 'leaderboard') window.Gamification?.renderCoachLeaderboard('coach-leaderboard', session.id);
   if (name === 'design')      window.coachDesign?._render();
 }
 
@@ -846,19 +767,11 @@ async function renderMembershipCard() {
 // MEMBERS
 // ════════════════════════════════
 async function renderMembers() {
-  const clients = await DB.getClientsByCoach(session.id);
-  const active  = clients.filter(c => DB.isMembershipActive(c));
-  const expired = clients.filter(c => !DB.isMembershipActive(c));
-
-  document.getElementById('active-count').textContent  = `(${active.length})`;
-  document.getElementById('expired-count').textContent = `(${expired.length})`;
-
-  await renderMemberList('active-members-list',  'active-empty',  active,  true);
-  await renderMemberList('expired-members-list', 'expired-empty', expired, false);
-
-  // Enhanced: KPI tiles + Daily Insight + Retention Radar
-  await renderCoachKPIs(clients, active, expired);
-  await renderRetentionRadar(clients);
+  // Roster + status tiles are owned by CoachMembers (coach-members.js).
+  // Just trigger a refresh.
+  if (window.coachMembers?.loadMembers) {
+    try { await window.coachMembers.loadMembers(); } catch {}
+  }
 }
 
 // Compute silence days since last workout
@@ -876,110 +789,7 @@ function _daysUntil(isoDate) {
   return Math.ceil((new Date(isoDate).getTime() - Date.now()) / 86400000);
 }
 
-async function renderCoachKPIs(clients, active, expired) {
-  // Count at-risk (active but silent 3+ days OR expiring within 7 days)
-  const risks = [];
-  for (const c of active) {
-    const sd = await _silenceDays(c.id);
-    const expIn = _daysUntil(c.membershipExpiry);
-    if (sd >= 3 || (expIn >= 0 && expIn <= 7)) risks.push(c);
-  }
-  // Pending video reviews
-  let reviewsWaiting = 0;
-  try {
-    const videos = await DB.getVideoReviewsByCoach(session.id);
-    reviewsWaiting = videos.filter(v => v.status === 'pending').length;
-  } catch {}
-
-  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-  set('kpi-active',   active.length);
-  set('kpi-risk',     risks.length);
-  set('kpi-expired',  expired.length);
-  set('kpi-reviews',  reviewsWaiting);
-
-  // Daily insight (psychology: loss-aversion framing + specific stat)
-  await renderDailyInsight(active, risks, reviewsWaiting);
-}
-
-async function renderDailyInsight(active, risks, reviewsWaiting) {
-  const host = document.getElementById('daily-insight-host');
-  if (!host) return;
-  const hhmm = new Date().toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
-  let copy, cta, action;
-  if (risks.length >= 3) {
-    copy = `${risks.length} clients haven't logged in 5+ days. A quick nudge today recovers 78% of them.`;
-    cta  = 'Send check-ins →';
-    action = `document.querySelector('#retention-radar-host').scrollIntoView({behavior:'smooth'})`;
-  } else if (reviewsWaiting >= 2) {
-    copy = `${reviewsWaiting} form-check videos waiting. Fast feedback doubles client retention in the first 90 days.`;
-    cta  = 'Review now →';
-    action = `showPage('formcheck')`;
-  } else if (active.length < 5) {
-    copy = `You have room to grow. Coaches who add 1 client/week hit $5K MRR in 14 weeks on average.`;
-    cta  = 'Add a member →';
-    action = `openAddMember()`;
-  } else {
-    copy = `Your roster looks healthy. Consider celebrating this week's PRs — recognition raises adherence 34%.`;
-    cta  = 'Open leaderboard →';
-    action = `showPage('leaderboard')`;
-  }
-  host.innerHTML = `
-    <div class="insight-banner">
-      <div class="insight-icon">✨</div>
-      <div style="flex:1;min-width:0">
-        <div class="insight-eyebrow">Daily Insight · ${hhmm}</div>
-        <div class="insight-copy">${copy}</div>
-        <button class="insight-cta" onclick="${action}">${cta}</button>
-      </div>
-    </div>
-  `;
-}
-
-async function renderRetentionRadar(clients) {
-  const host = document.getElementById('retention-radar-host');
-  if (!host) return;
-  const alerts = [];
-  for (const c of clients) {
-    if (!DB.isMembershipActive(c)) continue;
-    const sd = await _silenceDays(c.id);
-    const expIn = _daysUntil(c.membershipExpiry);
-    if (expIn >= 0 && expIn <= 7) {
-      alerts.push({ kind:'red', icon:'📅', title:c.name, sub:`Membership expires in ${expIn} day${expIn===1?'':'s'}`, label:'Renew', action:`openEditMember('${c.id}')` });
-    } else if (sd >= 3 && sd !== Infinity) {
-      alerts.push({ kind:'amber', icon:'⏳', title:c.name, sub:`${sd} days silent · last workout ${sd} day${sd===1?'':'s'} ago`, label:'Message', action:`MessagingUI.openChat(session.id,'${c.id}','${c.name.replace(/'/g,"\\'")}')` });
-    } else if (sd === Infinity) {
-      alerts.push({ kind:'amber', icon:'👋', title:c.name, sub:`No workouts logged yet — welcome them in`, label:'Message', action:`MessagingUI.openChat(session.id,'${c.id}','${c.name.replace(/'/g,"\\'")}')` });
-    }
-  }
-  // Add PR celebrations (clients with 10+ streak = milestone worth celebrating)
-  for (const c of clients.slice(0, 6)) {
-    try {
-      const s = await DB.computeClientStreak(c.id);
-      if (s.current >= 7) {
-        alerts.push({ kind:'green', icon:'🏆', title:c.name, sub:`Hit ${s.current}-day streak!`, label:'Celebrate', action:`MessagingUI.openChat(session.id,'${c.id}','${c.name.replace(/'/g,"\\'")}')` });
-      }
-    } catch {}
-  }
-
-  if (!alerts.length) {
-    host.innerHTML = '';
-    return;
-  }
-
-  host.innerHTML = `
-    <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:1.5px;margin:4px 0 10px">🎯 RETENTION RADAR</div>
-    ${alerts.slice(0, 6).map((a, i) => `
-      <div class="alert-row ${a.kind}" style="animation-delay:${i*80}ms">
-        <div class="alert-icon">${a.icon}</div>
-        <div style="flex:1;min-width:0">
-          <div class="alert-title">${a.title}</div>
-          <div class="alert-sub">${a.sub}</div>
-        </div>
-        <button class="alert-btn" onclick="${a.action}">${a.label}</button>
-      </div>
-    `).join('')}
-  `;
-}
+// KPI + retention-radar logic moved to CoachInsights (push notifications).
 
 async function renderMemberList(listId, emptyId, clients, isActive) {
   const container = document.getElementById(listId);

@@ -112,39 +112,5 @@ export async function renderBadges(containerId, clientId) {
     </div>`;
 }
 
-// Coach leaderboard — rank clients by total workouts
-export async function renderCoachLeaderboard(containerId, coachId) {
-  injectStyles();
-  const el = document.getElementById(containerId);
-  if (!el) return;
-  const clients = await DB.getClientsByCoach(coachId);
-  const withStats = await Promise.all(clients.map(async c => {
-    const s = await DB.computeClientStreak(c.id);
-    return { ...c, ...s };
-  }));
-  withStats.sort((a, b) => b.totalWorkouts - a.totalWorkouts);
-
-  if (!withStats.length) {
-    el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted)">No clients yet.</div>';
-    return;
-  }
-
-  el.innerHTML = withStats.map((c, i) => {
-    const rank = i + 1;
-    const rankClass = rank === 1 ? 'top1' : rank === 2 ? 'top2' : rank === 3 ? 'top3' : '';
-    const initials = c.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-    return `
-      <div class="leaderboard-row">
-        <div class="leaderboard-rank ${rankClass}">#${rank}</div>
-        <div style="width:36px;height:36px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">${initials}</div>
-        <div style="flex:1">
-          <div style="font-weight:600;font-size:14px">${c.name}</div>
-          <div style="font-size:11px;color:var(--text-muted)">🔥 ${c.current}d streak · Best: ${c.longest}d</div>
-        </div>
-        <div style="font-weight:700;font-size:18px;color:var(--primary)">${c.totalWorkouts}</div>
-      </div>`;
-  }).join('');
-}
-
-export const Gamification = { renderStreakBanner, renderBadges, renderCoachLeaderboard };
+export const Gamification = { renderStreakBanner, renderBadges };
 if (typeof window !== 'undefined') window.Gamification = Gamification;

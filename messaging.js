@@ -375,5 +375,59 @@ export function openGlobalChat(currentUserId, coachId) {
   modal.onclick = e => { if (e.target === modal) window.__bixCloseChat(); };
 }
 
-export const MessagingUI = { renderInbox, openChat, openGlobalChat, subscribeUnreadCount };
+// ── Member picker / search (above the inbox) ──
+let _pickerCache = { coachId: null, clients: [], wired: false };
+
+export async function wirePicker(coachId) {
+  const input = document.getElementById('msg-search');
+  const sugg  = document.getElementById('msg-suggest');
+  if (!input || !sugg) return;
+
+  if (_pickerCache.coachId !== coachId) {
+    _pickerCache.coachId = coachId;
+    _pickerCache.clients = await DB.getClientsByCoach(coachId).catch(() => []);
+  }
+
+  const close = () => { sugg.style.display = 'none'; sugg.innerHTML = ''; };
+
+  if (!_pickerCache.wired) {
+    _pickerCache.wired = true;
+
+    input.addEventListener('input', () => {
+      const q = input.value.trim().toLowerCase();
+      if (!q) { close(); return; }
+      const matches = _pickerCache.clients
+        .filter(c => (c.name || '').toLowerCase().includes(q) || (c.username || '').toLowerCase().includes(q))
+        .slice(0, 8);
+      if (!matches.length) {
+        sugg.innerHTML = '<div class="msg-suggest-empty">No member matches</div>';
+      } else {
+        sugg.innerHTML = matches.map(c => {
+          const initials = (c.name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+          return `<button class="msg-suggest-row" data-id="${c.id}" data-name="${(c.name || '').replace(/"/g, '&quot;')}">
+            <span class="msg-suggest-avatar">${initials}</span>
+            <span class="msg-suggest-info"><span class="msg-suggest-name">${c.name || 'Unknown'}</span><span class="msg-suggest-meta">@${c.username || ''}</span></span>
+          </button>`;
+        }).join('');
+      }
+      sugg.style.display = 'block';
+    });
+
+    sugg.addEventListener('click', (e) => {
+      const row = e.target.closest('.msg-suggest-row');
+      if (!row) return;
+      const id = row.dataset.id;
+      const name = row.dataset.name;
+      input.value = '';
+      close();
+      openChat(coachId, id, name);
+    });
+
+    document.addEventListener('click', (e) => {
+      if (e.target !== input && !sugg.contains(e.target)) close();
+    });
+  }
+}
+
+export const MessagingUI = { renderInbox, openChat, openGlobalChat, subscribeUnreadCount, wirePicker };
 if (typeof window !== 'undefined') window.MessagingUI = MessagingUI;

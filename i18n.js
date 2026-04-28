@@ -21,8 +21,8 @@ export const LANGS = {
     fpConfPass: 'Confirm Password', fpConfPassPh: 'Confirm password',
     fpReset: 'Reset Password', fpBackLogin: '← Back to Sign In',
     // ── Coach nav ──
-    navMembers: 'Members', navPreservation: 'Client Preservation',
-    navTasks: 'Tasks', navMessages: 'Messages', navLeaderboard: 'Leaderboard',
+    navMembers: 'Members',
+    navTasks: 'Tasks', navMessages: 'Messages',
     navBilling: 'Billing', navSettings: 'Settings', navDesign: 'Brand & Design',
     // ── Client nav ──
     navHome: 'Home', navProgram: 'My Program', navProgress: 'Analytics',
@@ -52,8 +52,8 @@ export const LANGS = {
     fpConfPass: 'אמת סיסמה', fpConfPassPh: 'אמת סיסמה',
     fpReset: 'אפס סיסמה', fpBackLogin: '← חזור לכניסה',
     // ── Coach nav ──
-    navMembers: 'מתאמנים', navPreservation: 'שימור לקוחות',
-    navTasks: 'משימות', navMessages: 'הודעות', navLeaderboard: 'לוח תוצאות',
+    navMembers: 'מתאמנים',
+    navTasks: 'משימות', navMessages: 'הודעות',
     navBilling: 'חיוב', navSettings: 'הגדרות', navDesign: 'מיתוג ועיצוב',
     // ── Client nav ──
     navHome: 'בית', navProgram: 'התוכנית שלי', navProgress: 'ניתוח',
@@ -83,8 +83,8 @@ export const LANGS = {
     fpConfPass: 'تأكيد كلمة المرور', fpConfPassPh: 'تأكيد كلمة المرور',
     fpReset: 'إعادة تعيين', fpBackLogin: '← العودة إلى تسجيل الدخول',
     // ── Coach nav ──
-    navMembers: 'الأعضاء', navPreservation: 'الاحتفاظ بالعملاء',
-    navTasks: 'المهام', navMessages: 'الرسائل', navLeaderboard: 'لوحة المتصدرين',
+    navMembers: 'الأعضاء',
+    navTasks: 'المهام', navMessages: 'الرسائل',
     navBilling: 'الفواتير', navSettings: 'الإعدادات', navDesign: 'العلامة التجارية',
     // ── Client nav ──
     navHome: 'الرئيسية', navProgram: 'برنامجي', navProgress: 'التحليلات',
@@ -112,8 +112,8 @@ export const LANGS = {
     fpNewPass: 'Nueva contraseña', fpNewPassPh: 'Ingresa nueva contraseña',
     fpConfPass: 'Confirmar contraseña', fpConfPassPh: 'Confirmar contraseña',
     fpReset: 'Restablecer', fpBackLogin: '← Volver al inicio',
-    navMembers: 'Miembros', navPreservation: 'Retención', navTasks: 'Tareas',
-    navMessages: 'Mensajes', navLeaderboard: 'Clasificación', navBilling: 'Facturación',
+    navMembers: 'Miembros', navTasks: 'Tareas',
+    navMessages: 'Mensajes', navBilling: 'Facturación',
     navSettings: 'Ajustes', navDesign: 'Marca y Diseño',
     navHome: 'Inicio', navProgram: 'Mi Programa', navProgress: 'Analítica',
     navFormcheck: 'Control de Técnica', navBillingClient: 'Facturación', navProfile: 'Perfil',
@@ -137,8 +137,8 @@ export const LANGS = {
     fpNewPass: 'Nouveau mot de passe', fpNewPassPh: 'Entrez un nouveau mot de passe',
     fpConfPass: 'Confirmer le mot de passe', fpConfPassPh: 'Confirmer le mot de passe',
     fpReset: 'Réinitialiser', fpBackLogin: '← Retour à la connexion',
-    navMembers: 'Membres', navPreservation: 'Rétention', navTasks: 'Tâches',
-    navMessages: 'Messages', navLeaderboard: 'Classement', navBilling: 'Facturation',
+    navMembers: 'Membres', navTasks: 'Tâches',
+    navMessages: 'Messages', navBilling: 'Facturation',
     navSettings: 'Paramètres', navDesign: 'Marque et Design',
     navHome: 'Accueil', navProgram: 'Mon Programme', navProgress: 'Analytique',
     navFormcheck: 'Contrôle Technique', navBillingClient: 'Facturation', navProfile: 'Profil',

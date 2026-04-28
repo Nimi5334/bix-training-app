@@ -1,233 +1,188 @@
 /**
- * Client Billing & Payment
- * Membership renewal, payment processing, and transaction history
+ * Client Billing — real PayPal payments
  */
 
 export class ClientBilling {
   constructor() {
     this.membership = null;
-    this.history = [];
+    this.sdkReady   = false;
   }
 
   async init() {
     document.addEventListener('sessionReady', () => this.loadBillingData());
-    window.addEventListener('paymentProcessed', () => this.loadBillingData());
   }
 
   async loadBillingData() {
     if (!window.session) return;
     try {
-      const data = await window.DB.getClientBilling(window.session.id);
-      this.membership = data.membership || {};
-      this.history = data.history || [];
-      this.renderMembershipStatus();
-      this.renderPaymentOptions();
-      this.renderHistory();
+      const user = await window.DB.getUserById(window.session.id);
+      this.membership = {
+        expiry:        user?.membershipExpiry || null,
+        lastPayment:   user?.lastPaymentDate  || null,
+        lastMethod:    user?.lastPaymentMethod || null,
+      };
+      this._renderStatus();
     } catch (err) {
-      console.error('Failed to load billing data:', err);
+      console.error('ClientBilling.loadBillingData error:', err);
     }
   }
 
-  renderMembershipStatus() {
-    const container = document.getElementById('membership-status') || this.createStatusContainer();
-    const now = new Date();
-    const expiryDate = new Date(this.membership.expiryDate);
-    const daysUntilExpiry = Math.floor((expiryDate - now) / (1000 * 60 * 60 * 24));
+  _renderStatus() {
+    const host = document.getElementById('billing-host');
+    if (!host) return;
 
-    let statusColor = 'var(--green)';
-    let statusText = 'Active';
-    let actionBtnText = 'Renew Now';
+    const expiry       = this.membership.expiry ? new Date(this.membership.expiry) : null;
+    const now          = new Date();
+    const daysLeft     = expiry ? Math.ceil((expiry - now) / 86400000) : null;
+    const isExpired    = expiry ? expiry < now : true;
+    const isExpiring   = !isExpired && daysLeft !== null && daysLeft <= 7;
 
-    if (daysUntilExpiry <= 0) {
-      statusColor = 'var(--red)';
-      statusText = 'Expired';
-      actionBtnText = 'Renew Now';
-    } else if (daysUntilExpiry <= 7) {
-      statusColor = 'var(--amber)';
-      statusText = `Expires in ${daysUntilExpiry} days`;
-      actionBtnText = 'Renew Now';
-    }
+    const statusColor  = isExpired ? '#f87171' : isExpiring ? '#fbbf24' : '#34d399';
+    const statusLabel  = isExpired ? 'Expired' : isExpiring ? `Expires in ${daysLeft}d` : 'Active';
+    const expiryStr    = expiry ? expiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
 
-    container.innerHTML = `
-      <div style="background: var(--surface); border-radius: var(--r-lg); padding: 20px; margin-bottom: 20px">
-        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px">
+    host.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:start">
           <div>
-            <h3 style="font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 8px">Your Membership</h3>
-            <div style="font-size: 24px; font-weight: 700; color: ${statusColor}">${statusText}</div>
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:6px">Membership</div>
+            <div style="font-size:24px;font-weight:800;color:${statusColor}">${statusLabel}</div>
           </div>
-          <div style="text-align: right">
-            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px">Expires</div>
-            <div style="font-size: 16px; font-weight: 600">${this.formatDate(this.membership.expiryDate)}</div>
+          <div style="text-align:right">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Expiry</div>
+            <div style="font-size:15px;font-weight:600">${expiryStr}</div>
           </div>
         </div>
-
-        <button class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700; margin-top: 12px" onclick="openPaymentOptions()">
-          💳 ${actionBtnText}
+        <button class="btn btn-primary" style="width:100%;margin-top:16px;padding:12px;font-weight:700;font-size:15px"
+          onclick="window.clientBilling.openPayment()">
+          💳 ${isExpired ? 'Renew Membership' : 'Extend Membership'}
         </button>
       </div>
-    `;
-  }
 
-  renderPaymentOptions() {
-    const container = document.getElementById('payment-options') || this.createPaymentContainer();
-    const amount = this.membership.renewalAmount || 29.99;
+      <!-- Payment panel (hidden until Renew clicked) -->
+      <div id="billing-payment-panel" style="display:none">
 
-    container.innerHTML = `
-      <div style="display: none" id="payment-methods-section">
-        <h3 style="font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 12px">Payment Method</h3>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px">
-          <button class="btn btn-secondary payment-method-btn" onclick="selectPaymentMethod('stripe')" style="padding: 12px; border: 2px solid transparent; transition: all .2s" data-method="stripe">
-            <div style="font-size: 18px; margin-bottom: 4px">💳</div>
-            <div style="font-size: 12px; font-weight: 600">Credit Card</div>
-            <div style="font-size: 11px; color: var(--text-muted)">Visa, Mastercard</div>
-          </button>
-          <button class="btn btn-secondary payment-method-btn" onclick="selectPaymentMethod('paypal')" style="padding: 12px; border: 2px solid transparent; transition: all .2s" data-method="paypal">
-            <div style="font-size: 18px; margin-bottom: 4px">🅿️</div>
-            <div style="font-size: 12px; font-weight: 600">PayPal</div>
-            <div style="font-size: 11px; color: var(--text-muted)">Fast & Secure</div>
-          </button>
-        </div>
-
-        <div style="background: var(--surface2); padding: 12px; border-radius: var(--r-md); margin-bottom: 16px">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 8px">
-            <span>Renewal Amount</span>
-            <span style="font-weight: 700">$${amount.toFixed(2)}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted)">
-            <span>Duration</span>
-            <span>1 Month</span>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px;margin-bottom:12px">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px">Select Plan</div>
+          <div style="display:flex;flex-direction:column;gap:8px" id="billing-plan-selector">
+            ${[
+              { months: 1, price: 29.99, label: '1 Month' },
+              { months: 3, price: 79.99, label: '3 Months' },
+              { months: 12, price: 249.99, label: '1 Year — Best Value' },
+            ].map((p, i) => `
+              <label style="display:flex;align-items:center;gap:10px;padding:12px;border:2px solid ${i === 2 ? 'var(--primary)' : 'var(--border)'};border-radius:var(--r-md);cursor:pointer;transition:border .15s"
+                onclick="window.clientBilling.selectPlan(${p.months}, ${p.price}, this)">
+                <input type="radio" name="plan" value="${p.months}" ${i === 2 ? 'checked' : ''} style="accent-color:var(--primary)" />
+                <span style="flex:1;font-weight:600">${p.label}</span>
+                <span style="font-weight:800;color:var(--primary)">$${p.price}</span>
+              </label>
+            `).join('')}
           </div>
         </div>
 
-        <div style="display: flex; gap: 10px">
-          <button class="btn btn-secondary" style="flex: 1" onclick="closePaymentOptions()">Cancel</button>
-          <button class="btn btn-primary" style="flex: 1; display: none" id="process-payment-btn" onclick="processPayment()">
-            Complete Payment
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px" id="billing-buttons-wrap">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px">Pay with</div>
+          <div id="paypal-wallet-btn" style="margin-bottom:10px"></div>
+          <div id="paypal-google-btn" style="margin-bottom:16px"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+            <div style="flex:1;height:1px;background:var(--border)"></div>
+            <span style="font-size:11px;color:var(--text-muted)">or pay by card</span>
+            <div style="flex:1;height:1px;background:var(--border)"></div>
+          </div>
+          <div id="card-number"  style="padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-md);margin-bottom:8px;min-height:44px"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+            <div id="card-expiry" style="padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-md);min-height:44px"></div>
+            <div id="card-cvv"    style="padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-md);min-height:44px"></div>
+          </div>
+          <button id="card-submit-btn" class="btn btn-primary" style="width:100%;padding:13px;font-weight:700;font-size:15px">
+            Pay Now
           </button>
+          <button class="btn btn-secondary" style="width:100%;margin-top:8px;padding:10px" onclick="window.clientBilling.closePayment()">Cancel</button>
         </div>
+
+        <div id="billing-error" style="color:#f87171;font-size:13px;margin-top:10px;display:none"></div>
+        <div id="billing-success" style="color:#34d399;font-size:13px;margin-top:10px;display:none"></div>
       </div>
     `;
+
+    // Store selected plan defaults
+    this._selectedMonths = 12;
+    this._selectedAmount = 249.99;
   }
 
-  renderHistory() {
-    const container = document.getElementById('payment-history') || this.createHistoryContainer();
+  selectPlan(months, price, labelEl) {
+    this._selectedMonths = months;
+    this._selectedAmount = price;
+    document.querySelectorAll('#billing-plan-selector label').forEach(l => {
+      l.style.borderColor = 'var(--border)';
+    });
+    if (labelEl) labelEl.style.borderColor = 'var(--primary)';
+    // Re-init payment buttons for new amount
+    this._mountButtons();
+  }
 
-    if (this.history.length === 0) {
-      container.innerHTML = '<p style="padding: 24px 0; text-align: center; color: var(--text-muted)">No payment history yet</p>';
-      return;
+  async openPayment() {
+    const panel = document.getElementById('billing-payment-panel');
+    if (!panel) return;
+    panel.style.display = 'block';
+
+    if (!this.sdkReady) {
+      try {
+        await window.PaymentModule.initPayPal();
+        this.sdkReady = true;
+      } catch (err) {
+        this._showError('Failed to load payment system: ' + err.message);
+        return;
+      }
     }
-
-    container.innerHTML = `
-      <h3 style="font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 12px">Payment History</h3>
-      <div style="display: flex; flex-direction: column; gap: 8px">
-        ${this.history.map(payment => `
-          <div style="background: var(--surface); padding: 12px; border-radius: var(--r-md); display: flex; justify-content: space-between; align-items: center">
-            <div>
-              <div style="font-size: 13px; font-weight: 600">${payment.description || 'Membership Renewal'}</div>
-              <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px">${this.formatDate(payment.date)}</div>
-            </div>
-            <div style="display: flex; align-items: center; gap: 12px">
-              <div style="font-weight: 600; color: ${payment.status === 'completed' ? 'var(--green)' : 'var(--amber)'}">
-                ${payment.status === 'completed' ? '+' : ''}$${payment.amount.toFixed(2)}
-              </div>
-              <div style="font-size: 11px; padding: 4px 8px; border-radius: 4px; background: ${payment.status === 'completed' ? 'rgba(52, 211, 153, .15)' : 'rgba(245, 158, 11, .15)'}; color: ${payment.status === 'completed' ? 'var(--green)' : 'var(--amber)'}; font-weight: 600">
-                ${payment.status.toUpperCase()}
-              </div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
+    this._mountButtons();
   }
 
-  formatDate(date) {
-    const d = new Date(date);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  _mountButtons() {
+    const uid  = window.session?.id   || '';
+    const name = window.session?.name || '';
+    const amount   = this._selectedAmount || 249.99;
+    const duration = this._selectedMonths  || 12;
+
+    const onSuccess = (result) => {
+      this._showSuccess(`Payment successful! Membership extended to ${result.newExpiry || 'updated'}.`);
+      document.getElementById('billing-payment-panel').style.display = 'none';
+      this.loadBillingData();
+      window.toast?.('Membership renewed!', 'success');
+    };
+    const onError = (msg) => this._showError(msg);
+
+    window.PaymentModule.renderPayPalWalletButton('paypal-wallet-btn',
+      { amount, duration, memberId: uid, memberName: name, onSuccess, onError });
+
+    window.PaymentModule.renderGooglePayButton('paypal-google-btn',
+      { amount, duration, memberId: uid, memberName: name, onSuccess, onError });
+
+    window.PaymentModule.initHostedFields('card-form',
+      { amount, duration, memberId: uid, memberName: name, onSuccess, onError });
   }
 
-  createStatusContainer() {
-    const container = document.createElement('div');
-    container.id = 'membership-status';
-    const billingPage = document.getElementById('page-billing') || this.createBillingPage();
-    billingPage.insertBefore(container, billingPage.firstChild);
-    return container;
+  closePayment() {
+    const panel = document.getElementById('billing-payment-panel');
+    if (panel) panel.style.display = 'none';
   }
 
-  createPaymentContainer() {
-    const container = document.createElement('div');
-    container.id = 'payment-options';
-    const billingPage = document.getElementById('page-billing') || this.createBillingPage();
-    billingPage.appendChild(container);
-    return container;
+  _showError(msg) {
+    const el = document.getElementById('billing-error');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 6000);
   }
 
-  createHistoryContainer() {
-    const container = document.createElement('div');
-    container.id = 'payment-history';
-    const billingPage = document.getElementById('page-billing') || this.createBillingPage();
-    billingPage.appendChild(container);
-    return container;
-  }
-
-  createBillingPage() {
-    const page = document.createElement('div');
-    page.className = 'page';
-    page.id = 'page-billing';
-    page.style.cssText = 'max-width: 600px';
-    const main = document.querySelector('main');
-    if (main) main.appendChild(page);
-    return page;
+  _showSuccess(msg) {
+    const el = document.getElementById('billing-success');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = 'block';
   }
 }
 
-let selectedPaymentMethod = null;
-
-// Global functions
-window.openPaymentOptions = () => {
-  document.getElementById('payment-methods-section').style.display = 'block';
-};
-
-window.closePaymentOptions = () => {
-  document.getElementById('payment-methods-section').style.display = 'none';
-  selectedPaymentMethod = null;
-};
-
-window.selectPaymentMethod = (method) => {
-  selectedPaymentMethod = method;
-  document.querySelectorAll('.payment-method-btn').forEach(btn => {
-    btn.style.borderColor = 'transparent';
-    btn.classList.remove('btn-primary');
-    btn.classList.add('btn-secondary');
-  });
-  const selected = document.querySelector(`[data-method="${method}"]`);
-  if (selected) {
-    selected.style.borderColor = 'var(--purple)';
-    selected.classList.remove('btn-secondary');
-    selected.classList.add('btn-primary');
-  }
-  document.getElementById('process-payment-btn').style.display = 'block';
-};
-
-window.processPayment = async () => {
-  if (!selectedPaymentMethod) {
-    window.toast('Please select a payment method', 'error');
-    return;
-  }
-
-  try {
-    if (selectedPaymentMethod === 'stripe') {
-      // TODO: Open Stripe payment modal
-      window.toast('Opening payment...');
-    } else if (selectedPaymentMethod === 'paypal') {
-      // TODO: Open PayPal payment flow
-      window.toast('Redirecting to PayPal...');
-    }
-  } catch (err) {
-    window.toast('Payment failed', 'error');
-  }
-};
-
-// Initialize on load
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { ClientBilling };
 }
