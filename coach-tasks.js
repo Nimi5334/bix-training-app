@@ -119,7 +119,7 @@ window.reviewTechniqueCheck = (checkId) => {
   // Clear stars
   document.querySelectorAll('.star').forEach(star => star.classList.remove('active'));
 
-  modal.classList.add('active');
+  modal.classList.add('open');
 };
 
 window.submitTechniqueReview = async () => {
