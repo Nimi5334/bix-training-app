@@ -30,6 +30,7 @@
       const userData = await DB.getUserByEmail(user.email);
       if (!userData || userData.role !== 'client') { location.replace('index.html'); return; }
       window.session = userData;
+      document.getElementById('auth-loader')?.remove();
       document.dispatchEvent(new CustomEvent('sessionReady'));
       // Unread messages badge
       subscribeUnreadCount(userData.id, (n) => {
@@ -77,6 +78,9 @@
   </script>
 </head>
 <body>
+<div id="auth-loader" style="position:fixed;inset:0;background:var(--bg,#0f0f14);z-index:9999;display:flex;align-items:center;justify-content:center">
+  <div style="width:32px;height:32px;border:3px solid var(--border,#333);border-top-color:var(--primary,#e8442a);border-radius:50%;animation:bixOrbit .7s linear infinite"></div>
+</div>
 <div class="dashboard">
 
   <!-- SIDEBAR -->
