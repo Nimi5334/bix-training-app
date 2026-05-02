@@ -796,6 +796,30 @@ select option { background: var(--surface2); color: var(--text); }
 .forgot-pass-btn:hover { color: var(--accent, #e8442a); }
 .forgot-pass-btn:focus { outline: none; box-shadow: none; }
 
+/* ── Sidebar BIX animated logo ── */
+.sidebar-bix-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  letter-spacing: -2px;
+  filter: drop-shadow(0 0 10px rgba(120,80,255,.45));
+  direction: ltr;
+  margin-bottom: 2px;
+}
+.sidebar-bix-letter {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--primary);
+  line-height: 1;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+.sidebar-bix-figure {
+  width: 19px;
+  height: 30px;
+  overflow: visible;
+  letter-spacing: 0;
+}
+
 /* ── Dashboard layout ── */
 .dashboard {
   display: flex;
@@ -804,7 +828,7 @@ select option { background: var(--surface2); color: var(--text); }
 .sidebar {
   width: 240px;
   min-width: 240px;
-  background: var(--surface);
+  background: linear-gradient(180deg, #130d28 0%, var(--surface) 100%);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -821,7 +845,7 @@ select option { background: var(--surface2); color: var(--text); }
   border: none;
 }
 .sidebar-logo {
-  padding: 0 20px 24px;
+  padding: 16px 20px 20px;
   border-bottom: 1px solid var(--border);
 }
 .sidebar-logo .icon { font-size: 28px; }
@@ -854,9 +878,9 @@ select option { background: var(--surface2); color: var(--text); }
 }
 .nav-item:hover { background: rgba(255,255,255,.04); color: var(--text); }
 .nav-item.active {
-  background: rgba(120,80,255,.12);
+  background: rgba(120,80,255,.14);
   color: var(--primary);
-  box-shadow: inset 3px 0 0 var(--primary);
+  box-shadow: inset 3px 0 0 var(--primary), 0 0 12px rgba(120,80,255,.12);
 }
 .nav-item .nav-icon { font-size: 18px; width: 22px; text-align: center; }
 .nav-item .nav-pill {
