@@ -206,6 +206,9 @@ DB.acceptPayment = async function(paymentId) {
       processedAt: serverTimestamp()
     });
 
+    // Fire webhook (non-blocking)
+    DB.fireWebhook('payment.received', { clientId: data.clientId, amount: data.amount, coachId: data.coachId });
+
     return true;
   } catch (err) {
     console.error('acceptPayment error:', err);
@@ -505,6 +508,206 @@ DB.getTestResults = async function() {
   } catch (err) {
     console.error('getTestResults error:', err);
     return [];
+  }
+};
+
+/**
+ * Intake Forms (PAR-Q + waiver)
+ */
+DB.getIntakeForm = async function(userId) {
+  try {
+    const snap = await getDoc(doc(db, 'intakeForms', userId));
+    return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  } catch (err) {
+    console.error('getIntakeForm error:', err);
+    return null;
+  }
+};
+
+DB.saveIntakeForm = async function(userId, data) {
+  try {
+    await setDoc(doc(db, 'intakeForms', userId), { ...data, savedAt: serverTimestamp() });
+    return true;
+  } catch (err) {
+    console.error('saveIntakeForm error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Nutrition / Macro Tracking
+ */
+DB.getMacroTargets = async function(clientId) {
+  try {
+    const snap = await getDoc(doc(db, 'macroTargets', clientId));
+    return snap.exists() ? snap.data() : null;
+  } catch (err) {
+    console.error('getMacroTargets error:', err);
+    return null;
+  }
+};
+
+DB.saveMacroTargets = async function(clientId, targets) {
+  try {
+    await setDoc(doc(db, 'macroTargets', clientId), { ...targets, updatedAt: serverTimestamp() });
+    return true;
+  } catch (err) {
+    console.error('saveMacroTargets error:', err);
+    throw err;
+  }
+};
+
+DB.getNutritionLog = async function(clientId, date) {
+  try {
+    const snap = await getDoc(doc(db, 'nutritionLogs', clientId, 'daily', date));
+    return snap.exists() ? snap.data() : { date, meals: [], totals: { protein: 0, carbs: 0, fats: 0, calories: 0 } };
+  } catch (err) {
+    console.error('getNutritionLog error:', err);
+    return null;
+  }
+};
+
+DB.logNutrition = async function(clientId, date, meals) {
+  try {
+    const totals = meals.reduce((acc, m) => ({
+      protein:  acc.protein  + (m.protein  || 0),
+      carbs:    acc.carbs    + (m.carbs    || 0),
+      fats:     acc.fats     + (m.fats     || 0),
+      calories: acc.calories + (m.calories || 0),
+    }), { protein: 0, carbs: 0, fats: 0, calories: 0 });
+
+    const data = { date, meals, totals, updatedAt: serverTimestamp() };
+    await setDoc(doc(db, 'nutritionLogs', clientId, 'daily', date), data);
+    return data;
+  } catch (err) {
+    console.error('logNutrition error:', err);
+    throw err;
+  }
+};
+
+DB.getNutritionLogs = async function(clientId, days = 7) {
+  try {
+    const results = [];
+    const today = new Date();
+    for (let i = 0; i < days; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const snap = await getDoc(doc(db, 'nutritionLogs', clientId, 'daily', dateStr));
+      if (snap.exists()) results.push({ date: dateStr, ...snap.data() });
+    }
+    return results.reverse();
+  } catch (err) {
+    console.error('getNutritionLogs error:', err);
+    return [];
+  }
+};
+
+/**
+ * Group Classes
+ */
+DB.createClass = async function(classData) {
+  try {
+    const ref = doc(collection(db, 'classes'));
+    const data = { id: ref.id, ...classData, createdAt: serverTimestamp() };
+    await setDoc(ref, data);
+    return ref.id;
+  } catch (err) {
+    console.error('createClass error:', err);
+    throw err;
+  }
+};
+
+DB.getClassesByCoach = async function(coachId) {
+  try {
+    const snap = await getDocs(query(collection(db, 'classes'), where('coachId', '==', coachId)));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.error('getClassesByCoach error:', err);
+    return [];
+  }
+};
+
+DB.getUpcomingClassesForClient = async function(clientSession) {
+  try {
+    const coachId = clientSession.coachId;
+    if (!coachId) return [];
+    const snap = await getDocs(query(
+      collection(db, 'classes'),
+      where('coachId', '==', coachId),
+      where('status', '!=', 'cancelled')
+    ));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.error('getUpcomingClassesForClient error:', err);
+    return [];
+  }
+};
+
+DB.bookClass = async function(classId, userId) {
+  try {
+    const ref = doc(db, 'classes', classId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new Error('Class not found');
+    const data = snap.data();
+    const bookings = data.bookings || [];
+    if (bookings.includes(userId)) return true; // already booked
+    if (bookings.length >= (data.capacity || 10)) throw new Error('Class is full');
+    const updated = [...bookings, userId];
+    await updateDoc(ref, {
+      bookings: updated,
+      status: updated.length >= (data.capacity || 10) ? 'full' : 'open',
+    });
+    return true;
+  } catch (err) {
+    console.error('bookClass error:', err);
+    throw err;
+  }
+};
+
+DB.cancelBooking = async function(classId, userId) {
+  try {
+    const ref = doc(db, 'classes', classId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return;
+    const data = snap.data();
+    const updated = (data.bookings || []).filter(id => id !== userId);
+    await updateDoc(ref, {
+      bookings: updated,
+      status: updated.length >= (data.capacity || 10) ? 'full' : 'open',
+    });
+  } catch (err) {
+    console.error('cancelBooking error:', err);
+    throw err;
+  }
+};
+
+DB.cancelClass = async function(classId) {
+  try {
+    await updateDoc(doc(db, 'classes', classId), { status: 'cancelled' });
+  } catch (err) {
+    console.error('cancelClass error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Webhooks — fire outbound event to coach's configured URL
+ */
+DB.fireWebhook = async function(eventName, payload) {
+  try {
+    const session = DB.getSession();
+    const coachId = window.session?.role === 'coach' ? window.session?.id
+      : window.session?.coachId || null;
+
+    fetch('/.netlify/functions/fire-webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: eventName, payload, coachId }),
+    }).catch(() => {}); // fire-and-forget
+  } catch (err) {
+    // Never block on webhook failures
+    console.warn('fireWebhook error:', err);
   }
 };
 

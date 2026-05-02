@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Welcome — Complete Your Profile</title>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#7850ff" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary: #7850ff;
+      --bg: #050508;
+      --surface: rgba(255,255,255,.04);
+      --border: rgba(255,255,255,.08);
+      --text: #f4f4f5;
+      --text-muted: #71717a;
+    }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    .intake-wrap { max-width: 680px; margin: 0 auto; padding: 32px 20px 80px; }
+
+    .intake-header { text-align: center; margin-bottom: 40px; }
+    .intake-logo { font-size: 48px; font-weight: 900; color: var(--primary); letter-spacing: -2px; margin-bottom: 8px; }
+    .intake-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .intake-sub { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+
+    .section { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 20px; }
+    .section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 16px; }
+    .section-desc { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 16px; }
+
+    .waiver-scroll { background: rgba(0,0,0,.3); border: 1px solid var(--border); border-radius: 10px; padding: 16px; max-height: 180px; overflow-y: auto; font-size: 13px; line-height: 1.7; color: var(--text-muted); margin-bottom: 16px; }
+    .waiver-scroll::-webkit-scrollbar { width: 4px; }
+    .waiver-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 2px; }
+
+    .sig-input { width: 100%; padding: 14px 16px; background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: 16px; font-family: 'Georgia', serif; letter-spacing: 1px; }
+    .sig-input::placeholder { color: #52525b; font-family: inherit; }
+    .sig-input:focus { outline: none; border-color: var(--primary); }
+
+    .submit-btn { width: 100%; padding: 16px; background: linear-gradient(135deg, var(--primary) 0%, #5c3ddb 100%); color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; transition: opacity .2s; margin-top: 8px; }
+    .submit-btn:hover { opacity: .9; }
+    .submit-btn:disabled { opacity: .5; cursor: default; }
+
+    .error-msg { background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.25); border-radius: 10px; color: #f87171; font-size: 13px; padding: 11px 14px; margin-bottom: 14px; display: none; }
+
+    .step-badge { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 13px; font-weight: 700; margin-right: 8px; flex-shrink: 0; }
+    .step-header { display: flex; align-items: center; margin-bottom: 14px; }
+    .step-header-text { font-size: 15px; font-weight: 700; }
+  </style>
+</head>
+<body>
+
+<div class="intake-wrap">
+
+  <div class="intake-header">
+    <div class="intake-logo">BIX</div>
+    <div class="intake-title">Welcome! Before we start…</div>
+    <div class="intake-sub">We need two things from you — a quick health questionnaire and your signature on our waiver.<br/>This only takes 2 minutes and is required once.</div>
+  </div>
+
+  <!-- Step 1: PAR-Q -->
+  <div class="section">
+    <div class="step-header">
+      <span class="step-badge">1</span>
+      <span class="step-header-text">PAR-Q Health Questionnaire</span>
+    </div>
+    <p class="section-desc">Answer each question honestly. If you answer "Yes" to any, we recommend consulting your doctor before starting a new exercise program.</p>
+    <div id="parq-list"></div>
+  </div>
+
+  <!-- Step 2: Waiver -->
+  <div class="section">
+    <div class="step-header">
+      <span class="step-badge">2</span>
+      <span class="step-header-text">Training Waiver</span>
+    </div>
+    <p class="section-desc">Please read the waiver below, then type your full name to sign.</p>
+    <div class="waiver-scroll" id="waiver-text">Loading…</div>
+    <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:8px">Type your full name to sign</label>
+    <input type="text" id="waiver-sig" class="sig-input" placeholder="Your Full Name" autocomplete="name" />
+  </div>
+
+  <div class="error-msg" id="intake-error"></div>
+  <button class="submit-btn" id="submit-btn" onclick="submitIntake()">Complete & Enter Dashboard →</button>
+
+  <p style="text-align:center;font-size:12px;color:#3f3f46;margin-top:20px">Your information is stored securely and only shared with your coach.</p>
+
+</div>
+
+<script type="module" src="./intake.js"></script>
+</body>
+</html>

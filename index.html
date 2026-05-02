@@ -8,6 +8,13 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Bix – Premium Training Platform</title>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#7850ff" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Bix" />
+  <link rel="apple-touch-icon" href="/icons/icon.svg" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -637,6 +644,11 @@
   </div>
 </div>
 
+<!-- PWA Install Button -->
+<button id="pwa-install-btn" onclick="triggerInstall()" style="display:none;position:fixed;bottom:20px;right:20px;z-index:200;align-items:center;gap:8px;background:rgba(120,80,255,.9);border:none;border-radius:20px;color:#fff;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;backdrop-filter:blur(8px);box-shadow:0 4px 20px rgba(120,80,255,.4)">
+  📲 Add to Home Screen
+</button>
+
 <!-- ══ LANGUAGE SWITCHER ══ -->
 <div class="lang-switcher">
   <button class="lang-btn" id="lang-btn" onclick="toggleLangMenu()">
@@ -962,6 +974,29 @@
 
   // Seed Firebase on first load (one-time only)
   DB.seedFirebase().catch(e => console.error('Seed error:', e));
+
+  // Register Service Worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+
+  // PWA install prompt
+  let _deferredInstall = null;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    _deferredInstall = e;
+    const btn = document.getElementById('pwa-install-btn');
+    if (btn) btn.style.display = 'flex';
+  });
+  window.triggerInstall = function() {
+    if (!_deferredInstall) return;
+    _deferredInstall.prompt();
+    _deferredInstall.userChoice.then(() => {
+      _deferredInstall = null;
+      const btn = document.getElementById('pwa-install-btn');
+      if (btn) btn.style.display = 'none';
+    });
+  };
 
   window.showForgotPage = showForgotPage;
   window.showLoginPage = showLoginPage;

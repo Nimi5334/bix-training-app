@@ -115,7 +115,7 @@ export class Notifications {
       const daysSince = (now - new Date(lastNotified).getTime()) / (1000 * 60 * 60 * 24);
 
       if (daysSince >= 1) {
-        // Notify coach
+        // Notify coach (in-app only — actual auto-message is sent server-side by at-risk-check.js)
         this.send({
           title: '🚨 Client At-Risk',
           message: `${member.name} is at-risk - offline 5+ days or no workout data 3+ days`,
@@ -123,9 +123,6 @@ export class Notifications {
           category: 'at-risk',
           targetUser: window.session.id
         });
-
-        // Send auto-message to client in chat
-        await window.DB.sendAutoMessage(member.id, 'Hi, how are you doing?', 'at-risk-check');
 
         await window.DB.updateMember(member.id, {
           lastAtRiskNotification: new Date()

@@ -16,3 +16,7 @@
   framework = "#custom"
   command = "npm run dev"
   port = 8888
+
+# Scheduled: run at-risk check daily at 9am UTC
+[functions."at-risk-check"]
+  schedule = "0 9 * * *"

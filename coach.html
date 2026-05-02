@@ -7,7 +7,12 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Coach Dashboard · Bix</title>
-  <meta name="app-version" content="20260423-v3" />
+  <meta name="app-version" content="20260501-v4" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#7850ff" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Bix" />
   <link rel="stylesheet" href="style.css?v=20260423" />
   <style>html{background:#0a0a0f}</style>
   <script type="module">
@@ -27,7 +32,14 @@
     import { CoachMemberDetail } from './coach-member-detail.js';
     import { CoachDesign } from './coach-design.js';
     import { CoachAlerts } from './coach-alerts.js';
+    import { CoachClasses } from './classes.js';
     import { applyToDOM, setLang } from './i18n.js';
+
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+
     // Auth guard: redirect if not logged in or not coach/admin
     auth.onAuthStateChanged(async (user) => {
       if (!user) {
@@ -63,6 +75,7 @@
     const coachMemberDetail = new CoachMemberDetail();
     const coachDesign  = new CoachDesign();
     const coachAlerts  = new CoachAlerts();
+    const coachClasses = new CoachClasses();
 
     coachMembers.init();
     coachTasks.init();
@@ -70,6 +83,7 @@
     notifications.init();
     coachDesign.init();
     coachAlerts.init();
+    coachClasses.init();
 
     // Make globals available to legacy non-module scripts
     window.DB = DB;
@@ -89,6 +103,7 @@
     window.coachMemberDetail = coachMemberDetail;
     window.coachDesign = coachDesign;
     window.coachAlerts = coachAlerts;
+    window.coachClasses = coachClasses;
     window.setLang = setLang;
   </script>
   <style>
@@ -172,6 +187,9 @@
       <div class="nav-item" onclick="showPage('settings')" data-page="settings">
         <span class="nav-icon">⚙️</span> <span data-i18n="navSettings">Settings</span>
       </div>
+      <div class="nav-item" onclick="showPage('classes')" data-page="classes">
+        <span class="nav-icon">📅</span> <span>Classes</span>
+      </div>
       <div class="nav-item" onclick="showPage('design')" data-page="design">
         <span class="nav-icon">🎨</span> <span data-i18n="navDesign">Brand & Design</span>
       </div>
@@ -251,6 +269,11 @@
           <p style="font-size:14px">No members yet. Click "+ Add Member" to get started.</p>
         </div>
       </div>
+    </div>
+
+    <!-- ══ CLASSES ══ -->
+    <div class="page" id="page-classes">
+      <div id="classes-coach-host"></div>
     </div>
 
     <!-- ══ BRAND & DESIGN ══ -->
@@ -696,6 +719,7 @@ function initPageInfo() {
     billing:       ['Billing',       'Renew your membership'],
     settings:      ['Settings',      'Customize your dashboard appearance'],
     design:        ['Brand & Design', 'Custom gym name and accent color (Pro)'],
+    classes:       ['Classes',        'Create and manage group class sessions'],
     'member-detail': ['Member',      'Program & status overview'],
   };
 }
@@ -732,6 +756,7 @@ function showPage(name) {
   }
   if (name === 'formcheck')   window.VideoFormCheck?.renderCoachQueue('vc-coach-list', session.id);
   if (name === 'design')      window.coachDesign?._render();
+  if (name === 'classes')     window.coachClasses?.render();
 }
 
 // ── Modals ──
@@ -899,6 +924,7 @@ async function saveMember() {
     const newUser = { id: DB.genId(), role: 'client', name, username, email, coachId: session.id, membershipExpiry: expiry };
     if (weight) newUser.currentWeight = weight;
     await DB.addUser(newUser);
+    DB.fireWebhook('member.created', { clientName: name, coachId: session.id });
   }
   closeModal('modal-member');
   renderMembers();

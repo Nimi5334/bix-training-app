@@ -381,6 +381,10 @@ const DB = {
         createdAt: new Date().toISOString(),
       };
       await setDoc(doc(db, 'workoutLogs', id), payload);
+      // Fire webhook (non-blocking)
+      if (typeof window !== 'undefined' && window.DB?.fireWebhook) {
+        window.DB.fireWebhook('workout.logged', { clientId: payload.clientId, date: payload.date, totalVolume: payload.totalVolume });
+      }
       return payload;
     } catch (e) {
       console.error('logWorkout error:', e);

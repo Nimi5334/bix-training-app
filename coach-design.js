@@ -23,9 +23,14 @@ export class CoachDesign {
   async load() {
     if (!window.session) return;
     try {
-      const user = await window.DB.getUserById(window.session.id);
-      this.isPro  = user?.tier === 'pro';
-      this.brand  = user?.brand || { name: '', accent: '#7850ff' };
+      const [user, settings] = await Promise.all([
+        window.DB.getUserById(window.session.id),
+        window.DB.getSettings(),
+      ]);
+      this.isPro        = user?.tier === 'pro';
+      this.brand        = user?.brand || { name: '', accent: '#7850ff' };
+      this._webhookUrl  = user?.webhookUrl || '';
+      this._waiverText  = settings?.waiverText || '';
       this._render();
     } catch (err) {
       console.error('CoachDesign.load error:', err);
@@ -89,6 +94,31 @@ export class CoachDesign {
 
         <button class="btn btn-primary btn-block" style="padding:14px" onclick="window.coachDesign.save()">Save Branding</button>
       </div>
+
+      <!-- Waiver Text -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:24px;margin-top:16px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Client Waiver Text</div>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">New clients will see and sign this waiver before accessing their dashboard. Leave blank to use the default.</p>
+        <textarea id="design-waiver-text" rows="6" placeholder="Leave blank to use the default waiver text…"
+          style="width:100%;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-md);color:var(--text);font-size:13px;resize:vertical;font-family:inherit;line-height:1.6">${this._waiverText || ''}</textarea>
+        <button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="window.coachDesign.saveWaiver()">Save Waiver</button>
+      </div>
+
+      <!-- Webhook / Zapier Integration -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:24px;margin-top:16px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Webhook / Zapier Integration</div>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
+          Paste a Zapier webhook URL (or any endpoint) to receive events when a new member joins, a payment is received, or a workout is logged.
+          <br/><span style="color:var(--primary)">Events: member.created · payment.received · workout.logged</span>
+        </p>
+        <input id="design-webhook-url" type="url" value="${this._webhookUrl || ''}" placeholder="https://hooks.zapier.com/hooks/catch/…"
+          style="width:100%;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-md);color:var(--text);font-size:13px;margin-bottom:10px" />
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-secondary btn-sm" onclick="window.coachDesign.saveWebhook()">Save URL</button>
+          <button class="btn btn-secondary btn-sm" onclick="window.coachDesign.testWebhook()">Send Test</button>
+        </div>
+        <div id="design-webhook-msg" style="display:none;font-size:12px;margin-top:8px;color:#10b981"></div>
+      </div>
     `;
   }
 
@@ -112,10 +142,61 @@ export class CoachDesign {
     try {
       await window.DB.updateUser(window.session.id, { brand: { name, accent } });
       window.toast('Brand saved! Clients will see it on next login.', 'success');
-      // Apply immediately to this coach session too
       if (accent) document.documentElement.style.setProperty('--primary', accent);
     } catch {
       window.toast('Failed to save brand', 'error');
     }
+  }
+
+  async saveWaiver() {
+    const text = document.getElementById('design-waiver-text')?.value.trim() || '';
+    try {
+      const settings = await window.DB.getSettings();
+      await window.DB.saveSettings({ ...settings, waiverText: text });
+      window.toast('Waiver text saved!', 'success');
+    } catch {
+      window.toast('Failed to save waiver', 'error');
+    }
+  }
+
+  async saveWebhook() {
+    const url = document.getElementById('design-webhook-url')?.value.trim() || '';
+    const msg = document.getElementById('design-webhook-msg');
+    try {
+      await window.DB.updateUser(window.session.id, { webhookUrl: url });
+      this._webhookUrl = url;
+      msg.style.display = 'block';
+      msg.textContent = '✅ Webhook URL saved!';
+      setTimeout(() => { msg.style.display = 'none'; }, 3000);
+    } catch {
+      window.toast('Failed to save webhook URL', 'error');
+    }
+  }
+
+  async testWebhook() {
+    const url = document.getElementById('design-webhook-url')?.value.trim() || this._webhookUrl;
+    const msg = document.getElementById('design-webhook-msg');
+    if (!url) { window.toast('Enter a webhook URL first', 'warning'); return; }
+    msg.style.display = 'block';
+    msg.textContent = 'Sending test…';
+    try {
+      const res = await fetch('/.netlify/functions/fire-webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'webhook.test',
+          payload: { message: 'Test event from Bix', coachId: window.session.id },
+          coachId: window.session.id,
+        }),
+      });
+      if (res.ok) {
+        msg.textContent = '✅ Test event sent successfully!';
+      } else {
+        msg.textContent = '⚠ Sent but got status ' + res.status;
+      }
+    } catch (e) {
+      msg.textContent = '❌ Failed to send test event';
+    }
+    setTimeout(() => { msg.style.display = 'none'; }, 4000);
   }
 }

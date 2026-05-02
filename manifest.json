@@ -1,0 +1,27 @@
+{
+  "name": "Bix Training Platform",
+  "short_name": "Bix",
+  "description": "Professional training management platform",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#7850ff",
+  "background_color": "#050508",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "My Program",
+      "short_name": "Program",
+      "url": "/client.html",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    }
+  ]
+}
