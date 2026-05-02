@@ -2,7 +2,7 @@
  * Bix Service Worker — Cache-first for static assets, network-first for API/Firebase
  */
 
-const CACHE = 'bix-v1';
+const CACHE = 'bix-v2';
 const STATIC = [
   '/',
   '/index.html',
