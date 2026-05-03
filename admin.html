@@ -7,8 +7,11 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Admin Dashboard</title>
-  <link rel="stylesheet" href="style.css?v=20260502" />
-  <style>html{background:#0f0f0f}</style>
+  <link rel="stylesheet" href="style.css?v=20260504" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>html{background:#0a0a0c}</style>
   <script type="module">
     import { DB, auth } from './db-firebase.js';
     import './db-extensions.js';
@@ -165,7 +168,7 @@
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap">
         <h2 id="sidebar-biz" style="font-size:13px;font-weight:600;margin:0"><span>Bix</span></h2>
-        <span class="role-badge" style="background:rgba(168,85,247,.15);color:#d8b4fe">Admin</span>
+        <span class="role-badge" style="background:rgba(200,255,0,.12);color:#c8ff00">Admin</span>
       </div>
     </div>
     <nav class="sidebar-nav">
@@ -214,9 +217,9 @@
         <p>Platform overview</p>
       </div>
       <div class="stats-row">
-        <div class="stat-card" style="background:rgba(120,80,255,.07);border-color:rgba(120,80,255,.2)">
+        <div class="stat-card" style="background:rgba(200,255,0,.07);border-color:rgba(200,255,0,.2)">
           <div class="stat-icon">🧑‍💼</div>
-          <div class="stat-value" id="stat-coaches" style="color:#a488ff">0</div>
+          <div class="stat-value" id="stat-coaches" style="color:#c8ff00">0</div>
           <div class="stat-label">Coaches</div>
         </div>
         <div class="stat-card" style="background:rgba(59,130,246,.07);border-color:rgba(59,130,246,.2)">

@@ -9,12 +9,15 @@
   <meta name="app-version" content="20260501-v4" />
   <title>Bix – My Training</title>
   <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#7850ff" />
+  <meta name="theme-color" content="#c8ff00" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Bix" />
-  <link rel="stylesheet" href="style.css?v=20260502" />
-  <style>html{background:#0a0a0f}</style>
+  <link rel="stylesheet" href="style.css?v=20260504" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>html{background:#0a0a0c}</style>
   <script type="module">
     import { DB, auth, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from './db-firebase.js';
     import './db-extensions.js';
@@ -455,9 +458,9 @@ document.addEventListener('sessionReady', async function() {
     const s     = await DB.getSettings();
     const me    = await DB.getUserById(session.id);
     const coach = me && me.coachId ? await DB.getUserById(me.coachId) : null;
-    const bgColor     = (coach && coach.applyColorToClients && coach.bgColor)     ? coach.bgColor     : (s.bgColor     || '#0f0f0f');
+    const bgColor     = (coach && coach.applyColorToClients && coach.bgColor)     ? coach.bgColor     : (s.bgColor     || '#0a0a0c');
     const accentColor = (coach?.brand?.accent) ? coach.brand.accent
-      : (coach && coach.applyColorToClients && coach.accentColor) ? coach.accentColor : (s.accentColor || '#7850ff');
+      : (coach && coach.applyColorToClients && coach.accentColor) ? coach.accentColor : (s.accentColor || '#c8ff00');
     const brandName   = coach?.brand?.name || s.businessName || 'Bix';
     document.documentElement.style.setProperty('--bg',           bgColor);
     document.documentElement.style.setProperty('--primary',      accentColor);

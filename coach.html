@@ -9,12 +9,15 @@
   <title>Coach Dashboard · Bix</title>
   <meta name="app-version" content="20260501-v4" />
   <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#7850ff" />
+  <meta name="theme-color" content="#c8ff00" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Bix" />
-  <link rel="stylesheet" href="style.css?v=20260502" />
-  <style>html{background:#0a0a0f}</style>
+  <link rel="stylesheet" href="style.css?v=20260504" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>html{background:#0a0a0c}</style>
   <script type="module">
     import { DB, auth } from './db-firebase.js';
     import './db-extensions.js';
@@ -108,23 +111,24 @@
   </script>
   <style>
     .member-card {
-      background: var(--surface);
+      background: transparent;
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 18px 20px;
+      border-radius: 0;
+      padding: 16px 20px;
       display: flex;
       align-items: center;
       gap: 16px;
       flex-wrap: wrap;
-      margin-bottom: 10px;
-      transition: border-color .2s;
+      margin-bottom: 6px;
+      transition: border-color .15s, background .15s;
     }
-    .member-card:hover { border-color: #555; }
+    .member-card:hover { border-color: var(--primary); background: rgba(200,255,0,.03); }
     .member-card.expired { opacity: .65; }
     .member-avatar {
-      width: 44px; height: 44px; border-radius: 50%;
+      width: 44px; height: 44px; border-radius: 0;
       display: flex; align-items: center; justify-content: center;
-      font-size: 18px; font-weight: 700; flex-shrink: 0;
+      font-size: 16px; font-weight: 700; flex-shrink: 0;
+      border: 1px solid var(--border-strong);
     }
     .member-info { flex: 1; min-width: 140px; }
     .member-name { font-weight: 700; font-size: 15px; }
