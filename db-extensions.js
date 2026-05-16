@@ -723,5 +723,38 @@ DB.setCoachBrand = async function(coachId, brand) {
   await DB.updateUser(coachId, { coachBrand: brand });
 };
 
+// ── COACH TIER (free / pro / studio) ──
+DB.getCoachTier = async function(coachId) {
+  const coach = await DB.getUserById(coachId);
+  if (!coach) return 'free';
+  // Trial check: if trialEndsAt has passed and tier is still pro without paid flag, downgrade view
+  if (coach.tier === 'pro' && coach.trialEndsAt) {
+    const trialEnd = new Date(coach.trialEndsAt);
+    if (trialEnd < new Date() && !coach.paidPro) {
+      return 'free';
+    }
+  }
+  return coach.tier || 'free';
+};
+
+DB.setCoachTier = async function(coachId, tier) {
+  await DB.updateUser(coachId, { tier, paidPro: tier === 'pro' || tier === 'studio' });
+};
+
+// ── PRODUCTION SAFEGUARD: v1 feature gate ──
+// Returns true only if the coach has explicitly opted into the v1 build.
+// Every v1 client-facing feature (white-label header, at-risk surfaces, save flow,
+// 30-day trial countdown, new onboarding) MUST check this before rendering or writing.
+DB.isV1Enabled = async function(coachId) {
+  if (!coachId) return false;
+  const coach = await DB.getUserById(coachId);
+  return !!(coach && coach.v1Enabled === true);
+};
+
+// For client-side checks where we already have the user object:
+DB.isV1EnabledFor = function(coach) {
+  return !!(coach && coach.v1Enabled === true);
+};
+
 // Export the extended DB
 export { DB };

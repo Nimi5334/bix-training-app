@@ -81,6 +81,19 @@ const DB = {
     try {
       // If user doesn't have an id, generate one
       const id = user.id || 'u_' + Date.now();
+
+      // Set defaults for coaches
+      if (user.role === 'coach') {
+        const trialEnd = new Date();
+        trialEnd.setDate(trialEnd.getDate() + 30);
+        user.tier = user.tier || 'pro';        // 30 days of pro
+        user.trialEndsAt = user.trialEndsAt || trialEnd.toISOString();
+        user.coachBrand = user.coachBrand || { displayName: 'Bix' };
+        // PRODUCTION SAFEGUARD: v1 features off by default. Founder flips this manually
+        // for opted-in beta coaches. Existing coaches stay at false → see no v1 changes.
+        if (typeof user.v1Enabled === 'undefined') user.v1Enabled = false;
+      }
+
       await setDoc(doc(db, 'users', id), { ...user, id });
       return id;
     } catch (e) {
