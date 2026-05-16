@@ -4,6 +4,9 @@
  * and handles at-risk/expiring membership detection
  */
 
+import { AT_RISK_RULES } from './at-risk.js';
+import { draftSaveMessage } from './at-risk-templates.js';
+
 export class CoachMembers {
   constructor() {
     this.members = [];
@@ -23,6 +26,7 @@ export class CoachMembers {
       this.renderMembers();
       this.checkAtRiskMembers();
       this.checkExpiringMemberships();
+      await renderAtRiskWidget();
     } catch (err) {
       console.error('Failed to load members:', err);
     }
@@ -200,6 +204,77 @@ export class CoachMembers {
       window.toast(`⚠️ ${member.name} is overtraining - high RPE and volume for 6+ days`, 'warning');
     });
   }
+}
+
+// ── AT-RISK WIDGET ──
+async function renderAtRiskWidget() {
+  const coachId = window.DB?.getSession?.()?.id;
+  if (!coachId) return;
+
+  const clients = await window.DB.getClientsByCoach(coachId);
+  const atRisk = clients
+    .filter(c => (c.atRiskScore || 0) >= 30)
+    .sort((a, b) => (b.atRiskScore || 0) - (a.atRiskScore || 0));
+
+  const root = document.getElementById('at-risk-list');
+  const widget = document.getElementById('at-risk-widget');
+
+  if (atRisk.length === 0) {
+    widget.style.display = 'none';
+    return;
+  }
+
+  widget.style.display = 'block';
+  root.innerHTML = atRisk.map(c => `
+    <div class="at-risk-row" style="padding:12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="flex:1">
+        <strong style="display:block;margin-bottom:4px">${c.name}</strong>
+        <span style="font-size:12px;color:var(--text-muted)">${(c.atRiskTriggered || []).map(t => AT_RISK_RULES.find(r => r.id === t)?.label).filter(Boolean).join(' · ')}</span>
+      </div>
+      <span style="font-weight:700;color:var(--primary)">${c.atRiskScore}%</span>
+      <button class="btn btn-secondary save-action" data-client-id="${c.id}" style="font-size:12px;padding:6px 12px">Save</button>
+    </div>
+  `).join('');
+
+  root.querySelectorAll('.save-action').forEach(btn => {
+    btn.addEventListener('click', () => openSaveDialog(btn.dataset.clientId));
+  });
+}
+
+async function openSaveDialog(clientId) {
+  const tier = await window.DB?.getCoachTier?.(window.DB?.getSession?.()?.id);
+  if (tier === 'free') {
+    window.showUpgradeModal?.('save-the-client');
+    return;
+  }
+
+  const client = await window.DB.getUserById(clientId);
+  const draft = draftSaveMessage(client.atRiskTriggered || [], { clientName: client.name });
+
+  const dialog = document.createElement('dialog');
+  dialog.style.cssText = 'border:1px solid var(--border);border-radius:12px;padding:20px;max-width:500px;background:var(--bg);color:var(--text)';
+  dialog.innerHTML = `
+    <h3 style="margin-top:0">Save ${client.name}</h3>
+    <textarea id="save-msg" rows="5" style="width:100%;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;box-sizing:border-box">${draft}</textarea>
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+      <button id="save-cancel" style="padding:8px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text)">Cancel</button>
+      <button id="save-send" style="padding:8px 16px;background:var(--primary);border:none;border-radius:6px;cursor:pointer;color:#fff;font-weight:600">Send</button>
+    </div>
+  `;
+  document.body.appendChild(dialog);
+  dialog.showModal();
+
+  dialog.querySelector('#save-send').addEventListener('click', async () => {
+    const msg = dialog.querySelector('#save-msg').value;
+    await window.DB.sendMessage?.(window.DB.getSession().id, clientId, msg);
+    dialog.close();
+    dialog.remove();
+    window.toast?.('Save message sent.', 'success');
+  });
+  dialog.querySelector('#save-cancel').addEventListener('click', () => {
+    dialog.close();
+    dialog.remove();
+  });
 }
 
 // Global functions for HTML onclick handlers
