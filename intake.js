@@ -11,8 +11,13 @@ let inviteCoachId = null;
 const params = new URLSearchParams(location.search);
 const inviteSlug = params.get('invite');
 
-// Note: DB.getCoachIdByInviteSlug will be implemented in Phase 3.
-// For now, we'll get the coach ID from the logged-in user.
+if (inviteSlug) {
+  inviteCoachId = await DB.getCoachIdByInviteSlug(inviteSlug);
+  if (!inviteCoachId) {
+    document.body.innerHTML = '<p>This invite link is invalid or expired.</p>';
+    throw new Error('Invalid invite');
+  }
+}
 
 const PAR_Q = [
   { id: 'q1', text: 'Has your doctor ever said that you have a heart condition and that you should only do physical activity recommended by a doctor?' },
@@ -117,6 +122,13 @@ window.submitIntake = async function() {
       waiver: { signedAt: new Date().toISOString(), signatureName: sig },
       completed: true,
     });
+
+    // If invite was used, attach client to coach and consume invite
+    if (inviteSlug && inviteCoachId) {
+      await DB.updateUser(session.id, { coachId: inviteCoachId });
+      await DB.consumeInvite(inviteSlug, session.id);
+    }
+
     location.replace('client.html');
   } catch (e) {
     console.error('Intake submit error:', e);
