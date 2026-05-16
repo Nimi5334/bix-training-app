@@ -183,6 +183,21 @@ export class ClientBilling {
   }
 }
 
+// ── POWERED BY BIX FOOTER (Free tier coaches only) ──
+async function maybeShowBixFooter() {
+  const session = window.DB?.getSession?.();
+  if (!session) return;
+  const client = await window.DB.getUserById(session.id);
+  if (!client?.coachId) return;
+  const coachTier = await window.DB.getCoachTier(client.coachId);
+  if (coachTier === 'free') {
+    const footer = document.getElementById('bix-footer');
+    if (footer) footer.hidden = false;
+  }
+}
+
+document.addEventListener('sessionReady', () => maybeShowBixFooter());
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { ClientBilling };
 }
