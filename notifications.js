@@ -189,9 +189,13 @@ export class Notifications {
       const daysSinceReminder = (now - new Date(lastReminder).getTime()) / (1000 * 60 * 60 * 24);
 
       if (daysSinceReminder >= 7) {
+        const coachId = window.session.coachId;
+        const brand = coachId ? await window.DB.getCoachBrand(coachId) : null;
+        const coachName = brand?.displayName || 'Your Coach';
+
         this.send({
           title: '⚖️ Time to Weigh In',
-          message: 'Time to update your weight for progress tracking',
+          message: `${coachName}: Time to update your weight for progress tracking`,
           type: 'info',
           category: 'weight-reminder',
           targetUser: window.session.id
