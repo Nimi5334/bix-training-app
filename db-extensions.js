@@ -711,5 +711,17 @@ DB.fireWebhook = async function(eventName, payload) {
   }
 };
 
+// ── COACH BRAND (white-label) ──
+import { mergeCoachBrand } from './coach-brand.js';
+
+DB.getCoachBrand = async function(coachId) {
+  const coach = await DB.getUserById(coachId);
+  return mergeCoachBrand(coach?.coachBrand);
+};
+
+DB.setCoachBrand = async function(coachId, brand) {
+  await DB.updateUser(coachId, { coachBrand: brand });
+};
+
 // Export the extended DB
 export { DB };
