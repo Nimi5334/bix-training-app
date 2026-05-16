@@ -7,8 +7,9 @@
  * Maps new API calls to existing methods where possible, provides stubs otherwise
  */
 
-import { DB } from './db-firebase.js';
+import { DB, auth } from './db-firebase.js';
 import { getFirestore, collection, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, addDoc, serverTimestamp, orderBy, limit, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const db = getFirestore();
 
@@ -781,6 +782,34 @@ DB.consumeInvite = async function(slug, clientUserId) {
     consumedBy: clientUserId,
     consumedAt: serverTimestamp()
   });
+};
+
+// ── ONBOARDING HELPERS ──
+DB.signUp = async function(email, password, profile) {
+  const cred = await createUserWithEmailAndPassword(auth, email, password);
+  const newUser = { id: cred.user.uid, email, ...profile };
+  await DB.addUser(newUser);
+  return newUser;
+};
+
+DB.sendPasswordResetEmail = async function(email) {
+  await sendPasswordResetEmail(auth, email);
+};
+
+DB.createDemoClient = async function(coachId) {
+  const fakeId = 'demo-' + Math.random().toString(36).slice(2, 10);
+  await DB.addUser({
+    id: fakeId,
+    name: 'Demo Sarah',
+    role: 'client',
+    coachId,
+    isDemo: true,
+    email: `${fakeId}@demo.bix`
+  });
+};
+
+DB.setCoachStarterProgramChoice = async function(coachId, programId) {
+  await DB.updateUser(coachId, { starterProgramChoice: programId });
 };
 
 // Export the extended DB

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Welcome to Bix</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    main { max-width: 520px; margin: 40px auto; padding: 24px; }
+    .btn-primary { background: var(--primary, #7850ff); color: #fff; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600; width: 100%; margin-top: 12px; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-secondary { background: var(--surface, rgba(255,255,255,.04)); color: var(--text, #f4f4f5); padding: 12px 20px; border: 1px solid var(--border, rgba(255,255,255,.08)); border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600; width: 100%; margin-top: 12px; }
+    .btn-secondary:hover { background: var(--surface2, rgba(255,255,255,.08)); }
+    input { width: 100%; padding: 12px; margin-top: 12px; background: var(--surface2, rgba(255,255,255,.05)); border: 1px solid var(--border, rgba(255,255,255,.08)); border-radius: 8px; color: var(--text, #f4f4f5); font-size: 15px; }
+    input::placeholder { color: var(--text-muted, #71717a); }
+    h1, h2, h3 { margin-top: 0; }
+    p { color: var(--text-muted, #71717a); font-size: 14px; }
+    .help { margin-top: 12px; text-align: center; }
+    hr { margin: 20px 0; border: none; border-top: 1px solid var(--border, rgba(255,255,255,.08)); }
+    #program-picker { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 12px; }
+    .program-card { background: var(--surface, rgba(255,255,255,.04)); border: 1px solid var(--border, rgba(255,255,255,.08)); border-radius: 8px; padding: 14px; text-align: left; cursor: pointer; transition: border-color 0.2s; }
+    .program-card:hover { border-color: var(--primary, #7850ff); }
+    .program-card strong { display: block; color: var(--text, #f4f4f5); font-size: 15px; }
+    .program-card span { display: block; color: var(--text-muted, #71717a); font-size: 13px; margin-top: 4px; }
+    a.btn-primary { display: block; text-align: center; text-decoration: none; }
+  </style>
+</head>
+<body style="background: var(--bg, #050508); color: var(--text, #f4f4f5); font-family: system-ui, -apple-system, sans-serif;">
+  <main id="onboarding-root">
+
+    <!-- Screen 1: Sign up -->
+    <section data-screen="signup">
+      <h1>Welcome to Bix</h1>
+      <p>Win clients. Keep them. Your first client is live in 5 minutes.</p>
+      <input id="signup-email" type="email" placeholder="Your email" required>
+      <input id="signup-name" type="text" placeholder="Your name" required>
+      <button id="signup-go" class="btn-primary">Continue</button>
+      <p class="help">No card required. 30 days of Pro free.</p>
+    </section>
+
+    <!-- Screen 2: Path choice -->
+    <section data-screen="path" hidden>
+      <h2>Add your first client</h2>
+      <button id="path-real" class="btn-primary">Add a real client now</button>
+      <button id="path-demo" class="btn-secondary">Try with a demo client</button>
+    </section>
+
+    <!-- Screen 3: Add real client -->
+    <section data-screen="real-client" hidden>
+      <h2>Who's your first client?</h2>
+      <input id="client-name" type="text" placeholder="Client name" required>
+      <input id="client-phone" type="tel" placeholder="Their WhatsApp number (e.g. +12025551234)" required>
+      <button id="client-go" class="btn-primary">Generate invite link</button>
+    </section>
+
+    <!-- Screen 4: WhatsApp share -->
+    <section data-screen="share" hidden>
+      <h2>Send the invite</h2>
+      <p>Tap to send via WhatsApp. They'll fill out a 2-minute intake.</p>
+      <a id="wa-link" class="btn-primary" target="_blank">Open WhatsApp</a>
+      <hr>
+      <h3>While you wait — pick a starter program</h3>
+      <div id="program-picker"></div>
+    </section>
+
+    <!-- Screen 5: Done -->
+    <section data-screen="done" hidden>
+      <h2>You're all set.</h2>
+      <p>We'll notify you the moment your client finishes intake.</p>
+      <a href="coach.html" class="btn-primary">Go to dashboard</a>
+    </section>
+
+  </main>
+  <script type="module" src="db-firebase.js"></script>
+  <script type="module" src="db-extensions.js"></script>
+  <script type="module" src="onboarding.js"></script>
+  <script type="module" src="program-templates.js"></script>
+  <script type="module">
+    import { generateClientInvite, buildWhatsAppInviteUrl } from './onboarding.js';
+    import { STARTER_PROGRAMS } from './program-templates.js';
+
+    function show(name) {
+      document.querySelectorAll('[data-screen]').forEach(s => s.hidden = s.dataset.screen !== name);
+    }
+
+    let coachId = null;
+    let coachName = null;
+
+    document.getElementById('signup-go').addEventListener('click', async () => {
+      const email = document.getElementById('signup-email').value.trim();
+      const name = document.getElementById('signup-name').value.trim();
+      if (!email || !name) return alert('Please fill in both fields.');
+      // Create coach with auto-generated password (they set it on first email click)
+      // For v1, send them a magic-link / password-reset email after signup
+      const tempPassword = Math.random().toString(36).slice(2) + 'Aa1!';
+      const user = await window.DB.signUp(email, tempPassword, { name, role: 'coach' });
+      coachId = user.id;
+      coachName = name;
+      // Send password reset so coach sets their real password from email
+      if (window.DB.sendPasswordResetEmail) {
+        await window.DB.sendPasswordResetEmail(email);
+      }
+      show('path');
+    });
+
+    document.getElementById('path-real').addEventListener('click', () => show('real-client'));
+    document.getElementById('path-demo').addEventListener('click', async () => {
+      // Create a demo client attached to this coach
+      if (window.DB.createDemoClient) {
+        await window.DB.createDemoClient(coachId);
+      }
+      show('done');
+    });
+
+    document.getElementById('client-go').addEventListener('click', async () => {
+      const clientName = document.getElementById('client-name').value.trim();
+      const phone = document.getElementById('client-phone').value.trim();
+      if (!clientName || !phone) return alert('Please fill in both fields.');
+      const { url } = await generateClientInvite(coachId, clientName);
+      const waUrl = buildWhatsAppInviteUrl(phone, coachName, url);
+      document.getElementById('wa-link').href = waUrl;
+      renderProgramPicker();
+      show('share');
+    });
+
+    function renderProgramPicker() {
+      const root = document.getElementById('program-picker');
+      root.innerHTML = STARTER_PROGRAMS.map(p => `
+        <button class="program-card" data-id="${p.id}">
+          <strong>${p.name}</strong>
+          <span>${p.description}</span>
+        </button>
+      `).join('');
+      root.querySelectorAll('.program-card').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id;
+          if (window.DB.setCoachStarterProgramChoice) {
+            await window.DB.setCoachStarterProgramChoice(coachId, id);
+          }
+          show('done');
+        });
+      });
+    }
+  </script>
+</body>
+</html>
