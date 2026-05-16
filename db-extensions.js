@@ -784,6 +784,37 @@ DB.consumeInvite = async function(slug, clientUserId) {
   });
 };
 
+// ── AT-RISK SIGNAL HELPERS ──
+DB.getWorkoutsByClient = async function(clientId) {
+  try {
+    const q = query(collection(db, 'workouts'), where('clientId', '==', clientId));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch {
+    return [];
+  }
+};
+
+DB.getMessagesByClient = async function(clientId) {
+  try {
+    const q = query(collection(db, 'messages'), where('fromId', '==', clientId));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch {
+    return [];
+  }
+};
+
+DB.getAppSessionsByClient = async function(clientId) {
+  try {
+    const q = query(collection(db, 'sessions'), where('clientId', '==', clientId), orderBy('openedAt', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch {
+    return [];
+  }
+};
+
 // ── ONBOARDING HELPERS ──
 DB.signUp = async function(email, password, profile) {
   const cred = await createUserWithEmailAndPassword(auth, email, password);
