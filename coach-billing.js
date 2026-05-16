@@ -117,6 +117,35 @@ window.sendRenewalReminder = async (clientId) => {
   }
 };
 
+// ── TRIAL COUNTDOWN BANNER ──
+async function renderTrialBanner() {
+  const coach = await window.DB.getUserById(window.DB.getSession().id);
+  if (!coach || coach.paidPro) return;
+  if (!coach.trialEndsAt) return;
+
+  const daysLeft = Math.max(0, Math.ceil((new Date(coach.trialEndsAt) - new Date()) / 86400000));
+  const banner = document.getElementById('trial-banner');
+  if (!banner) return;
+
+  if (daysLeft > 0) {
+    banner.innerHTML = `
+      <div style="background:#FFF3CD;color:#000;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;font-size:14px">
+        <span><strong>${daysLeft} days</strong> left of your Pro trial.</span>
+        <a href="billing.html" style="background:#7850ff;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-weight:600;font-size:13px">Keep Pro for $29/mo</a>
+      </div>
+    `;
+  } else {
+    banner.innerHTML = `
+      <div style="background:#F8D7DA;color:#000;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;font-size:14px">
+        <span>Your Pro trial ended. You're now on Free.</span>
+        <a href="billing.html" style="background:#7850ff;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-weight:600;font-size:13px">Upgrade to Pro</a>
+      </div>
+    `;
+  }
+}
+
+document.addEventListener('sessionReady', () => renderTrialBanner());
+
 // Initialize on load
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { CoachBilling };
