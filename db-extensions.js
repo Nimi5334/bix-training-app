@@ -756,5 +756,32 @@ DB.isV1EnabledFor = function(coach) {
   return !!(coach && coach.v1Enabled === true);
 };
 
+// ── COACH INVITE SLUGS ──
+DB.createInviteSlug = async function(coachId, clientName) {
+  const slugBase = clientName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const slug = `${slugBase}-${Date.now().toString(36)}`;
+  await setDoc(doc(db, 'invites', slug), {
+    coachId,
+    clientName,
+    createdAt: serverTimestamp(),
+    consumed: false
+  });
+  return slug;
+};
+
+DB.getCoachIdByInviteSlug = async function(slug) {
+  const snap = await getDoc(doc(db, 'invites', slug));
+  if (!snap.exists()) return null;
+  return snap.data().coachId;
+};
+
+DB.consumeInvite = async function(slug, clientUserId) {
+  await updateDoc(doc(db, 'invites', slug), {
+    consumed: true,
+    consumedBy: clientUserId,
+    consumedAt: serverTimestamp()
+  });
+};
+
 // Export the extended DB
 export { DB };
