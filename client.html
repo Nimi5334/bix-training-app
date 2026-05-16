@@ -50,6 +50,17 @@
       if (!intake?.completed) { location.replace('intake.html'); return; }
       window.session = userData;
       document.dispatchEvent(new CustomEvent('sessionReady'));
+
+      // Mount coach-branded header (v1)
+      if (userData?.coachId) {
+        const { mountCoachBrandedHeader } = await import('./coach-branded-header.js');
+        await mountCoachBrandedHeader('#brand-header', userData.coachId);
+        // Update page title with coach brand name
+        const brand = await DB.getCoachBrand(userData.coachId);
+        document.title = (brand.displayName || 'Bix') + ' – My Training';
+        document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', brand.displayName || 'Bix');
+      }
+
       // Unread messages badge
       subscribeUnreadCount(userData.id, (n) => {
         const b = document.getElementById('client-messages-unread');
@@ -102,6 +113,7 @@
   </script>
 </head>
 <body>
+<div id="brand-header"></div>
 <div class="dashboard">
 
   <!-- SIDEBAR -->
