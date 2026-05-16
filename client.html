@@ -17,7 +17,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <style>html{background:#0a0a0c}</style>
+  <style>
+    html{background:#0a0a0c}
+    @keyframes wr-pop{0%{transform:scale(.5);opacity:0}100%{transform:scale(1);opacity:1}}
+  </style>
   <script type="module">
     import { DB, auth, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from './db-firebase.js';
     import './db-extensions.js';
@@ -55,8 +58,9 @@
       if (userData?.coachId) {
         const { mountCoachBrandedHeader } = await import('./coach-branded-header.js');
         await mountCoachBrandedHeader('#brand-header', userData.coachId);
-        // Update page title with coach brand name
+        // Update page title with coach brand name + expose for PR cards
         const brand = await DB.getCoachBrand(userData.coachId);
+        window._coachBrand = brand;
         document.title = (brand.displayName || 'Bix') + ' – My Training';
         document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', brand.displayName || 'Bix');
       }
@@ -1010,16 +1014,49 @@ document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', 
     </button>
   </div>
 
-  <!-- SUMMARY SCREEN -->
+  <!-- SUMMARY SCREEN (Phase C.1 workout ritual) -->
   <div id="wr-screen-summary" style="flex:1;display:none;flex-direction:column;align-items:center;padding:32px 24px;overflow-y:auto">
-    <div style="font-size:56px;margin-bottom:16px">🏆</div>
-    <div style="font-size:24px;font-weight:800;margin-bottom:6px">Workout Complete!</div>
-    <div style="font-size:14px;color:var(--text-muted);margin-bottom:28px" id="wr-duration-label"></div>
-    <div id="wr-achievements" style="width:100%;max-width:360px;margin-bottom:24px"></div>
+    <div style="font-size:64px;margin-bottom:8px;animation:wr-pop .4s cubic-bezier(.175,.885,.32,1.275)">🏆</div>
+    <div style="font-size:26px;font-weight:800;margin-bottom:4px">Workout Complete!</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:24px" id="wr-duration-label"></div>
+
+    <!-- Animated stat tiles -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:360px;margin-bottom:20px">
+      <div style="background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:var(--r-md);padding:16px;text-align:center">
+        <div id="wr-stat-sets" style="font-size:38px;font-weight:800;color:var(--primary);font-variant-numeric:tabular-nums">0</div>
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">Sets</div>
+      </div>
+      <div style="background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:var(--r-md);padding:16px;text-align:center">
+        <div id="wr-stat-reps" style="font-size:38px;font-weight:800;color:var(--primary);font-variant-numeric:tabular-nums">0</div>
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">Reps</div>
+      </div>
+      <div style="background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:var(--r-md);padding:16px;text-align:center">
+        <div id="wr-stat-mins" style="font-size:38px;font-weight:800;color:var(--primary);font-variant-numeric:tabular-nums">0</div>
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">Minutes</div>
+      </div>
+      <div style="background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:var(--r-md);padding:16px;text-align:center">
+        <div id="wr-stat-prs" style="font-size:38px;font-weight:800;color:#fbbf24;font-variant-numeric:tabular-nums">0</div>
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">PRs 🔥</div>
+      </div>
+    </div>
+
+    <!-- PR achievements list -->
+    <div id="wr-achievements" style="width:100%;max-width:360px;margin-bottom:16px"></div>
+
+    <!-- Share PR Card (shown only when PRs hit) -->
+    <button id="wr-pr-share" class="btn btn-primary" style="display:none;width:100%;max-width:360px;padding:14px;font-weight:700;margin-bottom:10px">
+      🏆 Share PR Card
+    </button>
+
+    <!-- Share workout summary -->
+    <button id="wr-share-btn" class="btn btn-secondary" style="width:100%;max-width:360px;padding:12px;margin-bottom:20px">
+      📤 Share Workout
+    </button>
+
     <textarea id="wr-notes" placeholder="How was your workout? Notes go to your coach…"
-      style="width:100%;max-width:360px;min-height:90px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:var(--r-md);color:var(--text);font-size:14px;padding:12px;resize:none;margin-bottom:20px;font-family:inherit"></textarea>
+      style="width:100%;max-width:360px;min-height:80px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:var(--r-md);color:var(--text);font-size:14px;padding:12px;resize:none;margin-bottom:16px;font-family:inherit"></textarea>
     <button class="btn btn-primary" style="width:100%;max-width:360px;padding:18px;font-size:16px;font-weight:700" onclick="endWorkout()">
-      End Workout
+      Save &amp; Close
     </button>
   </div>
 

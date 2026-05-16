@@ -2,3 +2,4 @@
 // Export all Cloud Functions
 
 exports.recalculateAtRiskDaily = require('./at-risk-cron').recalculateAtRiskDaily;
+exports.scheduleSmartPush      = require('./smart-push').scheduleSmartPush;

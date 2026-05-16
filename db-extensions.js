@@ -843,5 +843,24 @@ DB.setCoachStarterProgramChoice = async function(coachId, programId) {
   await DB.updateUser(coachId, { starterProgramChoice: programId });
 };
 
+// ── SMART PUSH TIMING ──
+// Record workout start timestamp per client per day-of-week.
+// A daily Cloud Function reads this to compute each client's optimal push time.
+DB.recordWorkoutStart = async function(clientId) {
+  try {
+    const now = new Date();
+    await addDoc(collection(db, 'workoutStartTimes'), {
+      clientId,
+      dayOfWeek: now.getDay(),           // 0=Sun … 6=Sat
+      hour:      now.getHours(),
+      minute:    now.getMinutes(),
+      timestamp: serverTimestamp(),
+    });
+  } catch (err) {
+    // Non-blocking — never surface this error to the client
+    console.warn('recordWorkoutStart error:', err);
+  }
+};
+
 // Export the extended DB
 export { DB };

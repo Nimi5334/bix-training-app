@@ -156,6 +156,11 @@ window.startWorkout = () => {
   WR.setLogs = [];
   WR.startTime = Date.now();
 
+  // Smart push timing — record start time for ML-style optimal push scheduling
+  if (window.session?.id && window.DB?.recordWorkoutStart) {
+    window.DB.recordWorkoutStart(window.session.id).catch(() => {});
+  }
+
   _wrShow('exercise');
   _wrRenderExercise();
   document.getElementById('wr-camera-btn').style.display = 'flex';
@@ -273,17 +278,73 @@ function _wrShowSummary() {
   _wrEl('wr-camera-btn').style.display = 'none';
   _wrEl('wr-progress-bar').style.width = '100%';
 
-  const mins = Math.round((Date.now() - WR.startTime) / 60000);
-  _wrEl('wr-duration-label').textContent = `Duration: ${mins} min`;
+  const mins      = Math.round((Date.now() - WR.startTime) / 60000);
+  const totalSets = WR.setLogs.length;
+  const totalReps = WR.setLogs.reduce((s, l) => s + (l.reps || 0), 0);
+  const prs       = WR.setLogs.filter(l => l.reps > (WR.exercises[l.exIdx]?.reps || 10));
 
-  // Simple achievements: any set where reps > target
-  const achievements = WR.setLogs
-    .filter(l => l.reps > (WR.exercises[l.exIdx]?.reps || 10))
-    .slice(0, 3)
-    .map(l => `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);border-radius:var(--r-md);margin-bottom:8px;font-size:13px;font-weight:600">
-      <span>🏅</span> Extra reps on ${WR.exercises[l.exIdx]?.name || 'Exercise'} — Set ${l.setNum}
-    </div>`);
-  _wrEl('wr-achievements').innerHTML = achievements.join('') || '';
+  _wrEl('wr-duration-label').textContent = `${mins} min · Keep it going!`;
+
+  // Animate all four stat counters
+  _animateCounter('wr-stat-sets', totalSets, 600);
+  _animateCounter('wr-stat-reps', totalReps, 800);
+  _animateCounter('wr-stat-mins', mins,      700);
+  _animateCounter('wr-stat-prs',  prs.length, 1000);
+
+  // PR achievement rows
+  _wrEl('wr-achievements').innerHTML = prs.slice(0, 3).map(l =>
+    `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:var(--r-md);margin-bottom:8px;font-size:13px;font-weight:600">
+      🏅 PR on <strong>${WR.exercises[l.exIdx]?.name || 'Exercise'}</strong> — ${l.reps} reps!
+    </div>`
+  ).join('');
+
+  // Share PR card button
+  const prShare = _wrEl('wr-pr-share');
+  if (prShare) {
+    if (prs.length > 0) {
+      const topPR = prs[0];
+      prShare.style.display = 'block';
+      prShare.onclick = async () => {
+        const { sharePRCard } = await import('./pr-card.js');
+        await sharePRCard({
+          clientName:   window.session?.name || 'Athlete',
+          exerciseName: WR.exercises[topPR.exIdx]?.name || 'Exercise',
+          reps:         topPR.reps,
+          coachBrand:   window._coachBrand || {},
+        });
+      };
+    } else {
+      prShare.style.display = 'none';
+    }
+  }
+
+  // Share workout summary (text)
+  const shareBtn = _wrEl('wr-share-btn');
+  if (shareBtn) {
+    shareBtn.onclick = () => {
+      const prText = prs.length > 0 ? `, ${prs.length} new PR${prs.length > 1 ? 's' : ''}` : '';
+      const text = `Just crushed a ${mins}-min workout! ${totalSets} sets, ${totalReps} total reps${prText} 💪`;
+      if (navigator.share) {
+        navigator.share({ text }).catch(() => {});
+      } else {
+        navigator.clipboard?.writeText(text).then(() => window.toast?.('Copied!', 'success'));
+      }
+    };
+  }
+}
+
+/** Count-up animation using rAF + ease-out cubic. */
+function _animateCounter(elId, target, duration) {
+  const el = _wrEl(elId);
+  if (!el || target === 0) { if (el) el.textContent = '0'; return; }
+  const start = performance.now();
+  function tick(now) {
+    const p    = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - p, 3);          // ease-out cubic
+    el.textContent = Math.round(ease * target);
+    if (p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
 }
 
 window.endWorkout = async () => {
