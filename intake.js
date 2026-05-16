@@ -6,6 +6,14 @@
 import { DB, auth } from './db-firebase.js';
 import './db-extensions.js';
 
+// Get coach ID from URL invite slug (if present) or from user's coach assignment
+let inviteCoachId = null;
+const params = new URLSearchParams(location.search);
+const inviteSlug = params.get('invite');
+
+// Note: DB.getCoachIdByInviteSlug will be implemented in Phase 3.
+// For now, we'll get the coach ID from the logged-in user.
+
 const PAR_Q = [
   { id: 'q1', text: 'Has your doctor ever said that you have a heart condition and that you should only do physical activity recommended by a doctor?' },
   { id: 'q2', text: 'Do you feel pain in your chest when you do physical activity?' },
@@ -28,6 +36,14 @@ auth.onAuthStateChanged(async (user) => {
   if (intake?.completed) { location.replace('client.html'); return; }
 
   session = userData;
+
+  // Set coach brand name from invite or user's coach assignment
+  const coachId = inviteCoachId || userData?.coachId;
+  if (coachId) {
+    const brand = await DB.getCoachBrand(coachId);
+    document.getElementById('intake-brand-name').textContent = brand.displayName || 'BIX';
+  }
+
   loadWaiverText();
   renderParQ();
 });
