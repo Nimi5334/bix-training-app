@@ -136,14 +136,18 @@ export class CoachDesign {
   }
 
   async save() {
-    const name   = document.getElementById('design-brand-name')?.value.trim() || '';
-    const accent = this.brand.accent;
-    this.brand = { name, accent };
+    const displayName = document.getElementById('design-brand-name')?.value.trim() || '';
+    const accentColor = this.brand.accent;
+    this.brand = { name: displayName, accent: accentColor };
     try {
-      await window.DB.updateUser(window.session.id, { brand: { name, accent } });
+      await window.DB.setCoachBrand(window.session.id, {
+        displayName,
+        accentColor
+      });
       window.toast('Brand saved! Clients will see it on next login.', 'success');
-      if (accent) document.documentElement.style.setProperty('--primary', accent);
-    } catch {
+      if (accentColor) document.documentElement.style.setProperty('--primary', accentColor);
+    } catch (err) {
+      console.error('Brand save error:', err);
       window.toast('Failed to save brand', 'error');
     }
   }
