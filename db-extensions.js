@@ -997,5 +997,34 @@ DB.saveFormDrill = async function(drill) {
   return id;
 };
 
+// ── C.3 QUIET DAY ──
+
+DB.markRestDay = async function(clientId) {
+  const today = new Date().toISOString().slice(0, 10);
+  await DB.updateUser(clientId, { restDayMarkedAt: today });
+};
+
+DB.getRestDayStatus = async function(clientId) {
+  const user = await DB.getUserById(clientId);
+  const marked = user?.restDayMarkedAt;
+  if (!marked) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return marked.slice(0, 10) === today;
+};
+
+// ── C.3 ANNIVERSARY ──
+
+DB.getAnniversaryData = async function(clientId) {
+  const user = await DB.getUserById(clientId);
+  if (!user?.createdAt) return null;
+  const startDate = new Date(user.createdAt);
+  const now = new Date();
+  const years = now.getFullYear() - startDate.getFullYear();
+  const todayMD = `${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const startMD = `${String(startDate.getMonth()+1).padStart(2,'0')}-${String(startDate.getDate()).padStart(2,'0')}`;
+  const isAnniversary = todayMD === startMD && years >= 1;
+  return { startDate: startDate.toISOString(), years, isAnniversary };
+};
+
 // Export the extended DB
 export { DB };
