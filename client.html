@@ -348,6 +348,15 @@
         </button>
       </div>
 
+      <!-- Music link (optional) -->
+      <div id="music-link-bar" style="margin-bottom:16px;padding:10px 14px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:var(--r-md);display:flex;align-items:center;gap:10px">
+        <span style="font-size:13px;color:var(--text-muted)">🎵</span>
+        <input id="music-url-input" type="url" placeholder="Paste Spotify or Apple Music link (optional)"
+          style="flex:1;background:transparent;border:none;color:var(--text);font-size:13px;outline:none"
+          oninput="saveMusicLink(this.value)" />
+        <button id="music-open-btn" style="display:none;padding:4px 10px;background:var(--primary);border:none;border-radius:6px;color:#fff;font-size:12px;cursor:pointer" onclick="openMusicLink()">▶ Open</button>
+      </div>
+
       <div id="week-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px"></div>
       <div id="week-content"></div>
     </div>
@@ -698,6 +707,33 @@ function cancelWeightEdit() {
   document.getElementById('weight-edit-btn').style.display = '';
 }
 
+async function loadMusicLink() {
+  try {
+    const user = await DB.getUserById(session.id);
+    const url = user?.musicLink;
+    if (url) {
+      const input = document.getElementById('music-url-input');
+      const btn = document.getElementById('music-open-btn');
+      if (input) input.value = url;
+      if (btn) btn.style.display = 'inline-block';
+    }
+  } catch {}
+}
+
+window.saveMusicLink = function(url) {
+  clearTimeout(window._musicSaveTimer);
+  window._musicSaveTimer = setTimeout(async () => {
+    await DB.updateUser(session.id, { musicLink: url || null });
+    const btn = document.getElementById('music-open-btn');
+    if (btn) btn.style.display = url ? 'inline-block' : 'none';
+  }, 800);
+};
+
+window.openMusicLink = function() {
+  const url = document.getElementById('music-url-input')?.value;
+  if (url) window.open(url, '_blank');
+};
+
 async function saveWeight() {
   const val = parseFloat(document.getElementById('weight-input').value);
   if (!val || val <= 0) return;
@@ -719,7 +755,11 @@ async function renderHome() {
   loadWeightBar();            // non-blocking
   loadGoalProximity();        // non-blocking
   loadBadgesAndAnniversary(); // non-blocking
+  loadMusicLink();            // non-blocking
   if (window.Gamification) Gamification.renderStreakBanner('client-streak-banner', session.id);
+  setTimeout(() => {
+    import('./quiet-day.js').then(({ maybeShowQuietDayPrompt }) => maybeShowQuietDayPrompt(session));
+  }, 2000);
 
   const plans = await DB.getPlansByClient(session.id);
   currentPlan = plans.find(p => p.status === 'active') || plans[0] || null;

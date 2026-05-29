@@ -390,6 +390,13 @@
           <div id="leaderboard-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px"></div>
         </section>
 
+        <!-- Coach of the week shoutout -->
+        <section id="shoutout-section" class="card" style="margin-bottom:20px">
+          <h3 style="margin-bottom:4px">📣 Weekly Shoutout</h3>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Bix drafts a shoutout. You approve, then it posts to the feed.</p>
+          <div id="shoutout-draft-area"></div>
+        </section>
+
         <!-- Roster controls: Add Member + LIVE pill -->
         <div class="roster-controls">
           <button class="btn btn-secondary roster-add" onclick="openAddMember()">+ Add Member</button>
@@ -1736,6 +1743,48 @@ document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', 
 
 
 // ════════════════════════════════
+// WEEKLY SHOUTOUT
+// ════════════════════════════════
+async function loadShoutoutDraft() {
+  if (!session) return;
+  const members = await window.DB.getCoachMembers(session.id).catch(() => []);
+  if (!members.length) return;
+
+  const oneWeekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  const ranked = members
+    .map(m => ({
+      ...m,
+      weeklyCount: (m.recentWorkouts || []).filter(w => (w.date || '') >= oneWeekAgo).length,
+    }))
+    .sort((a, b) => b.weeklyCount - a.weeklyCount);
+
+  const star = ranked[0];
+  if (!star || star.weeklyCount === 0) return;
+
+  const coachBrand = await window.DB.getCoachBrand(session.id).catch(() => ({}));
+  const coachName = coachBrand?.displayName || session.name || 'Coach';
+  const draft = `🏆 Shoutout to ${star.name}! ${star.weeklyCount} session${star.weeklyCount !== 1 ? 's' : ''} this week — consistency is everything. Coached by ${coachName}. 💪`;
+
+  const el = document.getElementById('shoutout-draft-area');
+  if (!el) return;
+  el.innerHTML = `
+    <textarea id="shoutout-text" rows="3" style="width:100%;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box">${draft}</textarea>
+    <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">
+      <button onclick="postShoutout()" class="btn btn-primary btn-sm">✓ Post to Feed</button>
+    </div>
+  `;
+}
+
+window.postShoutout = async function() {
+  const text = document.getElementById('shoutout-text')?.value?.trim();
+  if (!text) return;
+  await window.DB.sendGlobalMessage?.(text, 'coach-shoutout');
+  const area = document.getElementById('shoutout-draft-area');
+  if (area) area.innerHTML = '<p style="font-size:13px;color:#22c55e">✅ Posted to the feed.</p>';
+  window.toast?.('Shoutout posted!', 'success');
+};
+
+// ════════════════════════════════
 // AI DRAFT NOTIFICATIONS
 // ════════════════════════════════
 async function loadPendingDrafts() {
@@ -1781,6 +1830,7 @@ document.addEventListener('sessionReady', async function() {
   applyToDOM(document);
   showPage('members');
   loadPendingDrafts();
+  loadShoutoutDraft();
 
   // Load form check queue
   (async () => {
