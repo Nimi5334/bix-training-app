@@ -865,5 +865,76 @@ DB.recordWorkoutStart = async function(clientId) {
   }
 };
 
+// ── AI PROGRAM DRAFTS ──
+
+DB.saveProgramDraft = async function(draft) {
+  const id = draft.id || `draft_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+  await setDoc(doc(db, 'programDrafts', id), { ...draft, id, updatedAt: serverTimestamp() });
+  return id;
+};
+
+DB.getProgramDraft = async function(draftId) {
+  const snap = await getDoc(doc(db, 'programDrafts', draftId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+};
+
+DB.getPendingDraftsForCoach = async function(coachId) {
+  const q = query(
+    collection(db, 'programDrafts'),
+    where('coachId', '==', coachId),
+    where('status', '==', 'pending_review'),
+    orderBy('createdAt', 'desc'),
+    limit(20)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
+DB.updateDraftStatus = async function(draftId, status, edits) {
+  const patch = { status, updatedAt: serverTimestamp() };
+  if (edits) patch.coachEdits = edits;
+  await updateDoc(doc(db, 'programDrafts', draftId), patch);
+};
+
+// ── COACH EDIT HISTORY (for style learning) ──
+
+DB.recordCoachEdit = async function(coachId, original, edited, context) {
+  await addDoc(collection(db, 'coachEditHistory'), {
+    coachId, original, edited, context,
+    createdAt: serverTimestamp()
+  });
+};
+
+DB.getCoachEditHistory = async function(coachId, limitN = 50) {
+  const q = query(
+    collection(db, 'coachEditHistory'),
+    where('coachId', '==', coachId),
+    orderBy('createdAt', 'desc'),
+    limit(limitN)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
+DB.getCoachStyleFingerprint = async function(coachId) {
+  const history = await DB.getCoachEditHistory(coachId, 100);
+  if (history.length < 20) return { confidence: history.length / 20, patterns: [] };
+
+  const subs = {};
+  history.forEach(edit => {
+    const key = `${edit.original?.exercise}→${edit.edited?.exercise}`;
+    if (edit.original?.exercise !== edit.edited?.exercise) {
+      subs[key] = (subs[key] || 0) + 1;
+    }
+  });
+
+  const patterns = Object.entries(subs)
+    .filter(([, count]) => count >= 3)
+    .map(([pattern, count]) => ({ pattern, count, confidence: Math.min(count / 10, 1) }))
+    .sort((a, b) => b.count - a.count);
+
+  return { confidence: Math.min(history.length / 50, 1), patterns, editCount: history.length };
+};
+
 // Export the extended DB
 export { DB };
