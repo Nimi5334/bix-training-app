@@ -149,6 +149,7 @@ export class CoachMembers {
             <div class="member-activity"><span id="streak-${member.id}">${activityLine}</span></div>
           </div>
           <div class="member-badge ${color}">${badge}</div>
+          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();generateDraft('${member.id}')" style="font-size:11px;padding:4px 10px;margin-left:4px">🤖 Draft</button>
         </div>
       `;
     }).join('');
@@ -347,6 +348,27 @@ window.filterMembers = (filter) => {
     });
     document.getElementById(`filter-${filter}`).classList.remove('btn-secondary');
     document.getElementById(`filter-${filter}`).classList.add('btn-primary');
+  }
+};
+
+window.generateDraft = async function(clientId) {
+  const ok = await window.requirePro?.('ai-program-drafts');
+  if (ok === false) return;
+  const btn = event?.target;
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    // Firebase callable function
+    const fn = window.firebase?.functions?.()?.httpsCallable?.('generateProgramDraft');
+    if (fn) {
+      await fn({ clientId, coachId: window.session.id });
+      window.toast?.('Draft generating — you\'ll be notified when ready.', 'success');
+    } else {
+      window.toast?.('Firebase functions not available.', 'error');
+    }
+  } catch (err) {
+    window.toast?.(`Draft failed: ${err.message}`, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🤖 Draft'; }
   }
 };
 

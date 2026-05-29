@@ -351,6 +351,8 @@
           <h2 id="coach-welcome-name">Welcome back! 👋</h2>
           <p>Here's what's happening with your roster today.</p>
         </div>
+        <!-- AI Draft notifications -->
+        <div id="draft-notifications" style="margin-bottom:16px"></div>
         <!-- Status Cards -->
         <div class="status-cards">
           <div class="status-card active">
@@ -1728,6 +1730,35 @@ function closeSidebar() {
 document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', closeSidebar));
 
 
+// ════════════════════════════════
+// AI DRAFT NOTIFICATIONS
+// ════════════════════════════════
+async function loadPendingDrafts() {
+  if (!window.DB || !session) return;
+  const drafts = await window.DB.getPendingDraftsForCoach(session.id);
+  const el = document.getElementById('draft-notifications');
+  if (!el || drafts.length === 0) return;
+  el.innerHTML = drafts.map(d => `
+    <div style="background:rgba(120,80,255,.1);border:1px solid rgba(120,80,255,.3);border-radius:10px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <span style="font-size:13px">🤖 AI draft ready — ${d.confidence || 0}% confidence</span>
+      <button onclick="openDraftPanel('${d.id}')" class="btn btn-primary btn-sm">Review Draft</button>
+    </div>
+  `).join('');
+}
+
+window.openDraftPanel = async function(draftId) {
+  let panel = document.getElementById('draft-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'draft-panel';
+    panel.style.cssText = 'position:fixed;inset:0;z-index:100;background:var(--bg);overflow-y:auto;padding:24px';
+    panel.innerHTML = '<button onclick="document.getElementById(\'draft-panel\').remove()" style="position:fixed;top:16px;right:16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 14px;cursor:pointer;color:var(--text)">✕ Close</button><div id="draft-panel-content" style="margin-top:48px"></div>';
+    document.body.appendChild(panel);
+  }
+  const { renderDraftReview } = await import('./ai-draft-ui.js');
+  await renderDraftReview('draft-panel-content', draftId);
+};
+
 // ── Boot: wait for session from module auth guard ──
 document.addEventListener('sessionReady', async function() {
   session = window.session;
@@ -1744,6 +1775,7 @@ document.addEventListener('sessionReady', async function() {
   await checkCoachMembership();
   applyToDOM(document);
   showPage('members');
+  loadPendingDrafts();
 
   if (window.innerWidth > 768 && localStorage.getItem('sidebar_collapsed') === '1') {
     document.querySelector('.dashboard').classList.add('sidebar-collapsed');
