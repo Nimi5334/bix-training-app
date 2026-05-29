@@ -735,11 +735,14 @@ DB.getCoachTier = async function(coachId) {
       return 'free';
     }
   }
-  return coach.tier || 'free';
+  const tier = coach.tier || 'free';
+  // Studio is now Pro — silently upgrade existing coaches
+  return tier === 'studio' ? 'pro' : tier;
 };
 
 DB.setCoachTier = async function(coachId, tier) {
-  await DB.updateUser(coachId, { tier, paidPro: tier === 'pro' || tier === 'studio' });
+  const validTier = tier === 'studio' ? 'pro' : tier;
+  await DB.updateUser(coachId, { tier: validTier, paidPro: validTier === 'pro' });
 };
 
 // ── PRODUCTION SAFEGUARD: v1 feature gate ──
