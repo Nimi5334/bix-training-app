@@ -87,6 +87,12 @@ async function renderGymDashboard(container, gym, coachId) {
         </div>
       ` : ''}
 
+      ${isOwner ? `
+      <div style="margin-top:16px">
+        <button onclick="openGymRevenueDashboard('${gym.id}','gym-management-container')" class="btn btn-secondary" style="width:100%">📊 View Revenue Dashboard</button>
+      </div>
+      ` : ''}
+
       <div style="background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:12px;padding:16px">
         <h3 style="margin:0 0 12px;font-size:14px">💬 Coach Chat (Internal)</h3>
         <div id="gym-chat-messages" style="height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:10px;padding:4px"></div>
@@ -161,4 +167,10 @@ window.sendGymChat = async function(gymId) {
   const session = window.DB.getSession();
   await window.DB.sendGymChatMessage(gymId, session.id, session.name || 'Coach', text);
   loadGymChat(gymId);
+};
+
+// Expose revenue dashboard for gym owners
+window.openGymRevenueDashboard = async function(gymId, containerId) {
+  const { renderGymRevenueDashboard } = await import('./gym-dashboard.js');
+  await renderGymRevenueDashboard(containerId, gymId);
 };

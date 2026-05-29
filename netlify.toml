@@ -8,6 +8,11 @@
   external_node_modules = ["stripe", "firebase-admin"]
 
 [[redirects]]
+  from = "/api/domain-lookup"
+  to = "/.netlify/functions/custom-domain-lookup"
+  status = 200
+
+[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200

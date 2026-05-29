@@ -671,6 +671,21 @@
   import { DB, auth } from './db-firebase.js';
   import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
+  // Detect if running on a custom gym domain
+  (async function detectCustomDomain() {
+    const host = location.hostname;
+    if (host === 'localhost' || host.includes('bix.app') || host.includes('netlify.app')) return;
+    try {
+      const resp = await fetch('/api/domain-lookup');
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.isCustomDomain && data.coachId) {
+        sessionStorage.setItem('customDomainCoachId', data.coachId);
+        sessionStorage.setItem('customDomainGymId', data.gymId || '');
+      }
+    } catch {}
+  })();
+
   // ── Auth guard: redirect if already logged in ──
   auth.onAuthStateChanged((user) => {
     if (user) {
