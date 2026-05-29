@@ -1134,5 +1134,73 @@ DB.getGymChatMessages = async function(gymId, limitN = 50) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 };
 
+// ── REFERRAL ENGINE ──
+
+DB.createReferralCode = async function(coachId) {
+  // Idempotent — return existing code if already created
+  const existing = await getDocs(query(collection(db, 'referrals'), where('coachId', '==', coachId)));
+  if (!existing.empty) return existing.docs[0].data().code;
+
+  const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+  await setDoc(doc(db, 'referrals', code), {
+    code, coachId,
+    redeemedBy: [],
+    rewardedMonths: 0,
+    createdAt: serverTimestamp(),
+  });
+  await DB.updateUser(coachId, { referralCode: code });
+  return code;
+};
+
+DB.getReferralCode = async function(coachId) {
+  const user = await DB.getUserById(coachId);
+  return user?.referralCode || null;
+};
+
+DB.redeemReferralCode = async function(newCoachId, code) {
+  const refSnap = await getDoc(doc(db, 'referrals', code));
+  if (!refSnap.exists()) throw new Error('Invalid referral code');
+
+  const ref = refSnap.data();
+  if (ref.coachId === newCoachId) throw new Error('Cannot use your own referral code');
+  if (ref.redeemedBy.includes(newCoachId)) throw new Error('Already redeemed');
+
+  // Give new coach +7 days on top of their trial
+  const newCoach = await DB.getUserById(newCoachId);
+  const trialBase = new Date(newCoach?.trialEndsAt || Date.now() + 30 * 86400000);
+  trialBase.setDate(trialBase.getDate() + 7);
+  await DB.updateUser(newCoachId, {
+    trialEndsAt: trialBase.toISOString(),
+    referredBy: ref.coachId,
+  });
+
+  // Give referrer +30 days
+  const referrer = await DB.getUserById(ref.coachId);
+  const referrerTrial = new Date(referrer?.trialEndsAt || Date.now() + 30 * 86400000);
+  referrerTrial.setDate(referrerTrial.getDate() + 30);
+  await DB.updateUser(ref.coachId, { trialEndsAt: referrerTrial.toISOString() });
+
+  await updateDoc(doc(db, 'referrals', code), {
+    redeemedBy: [...ref.redeemedBy, newCoachId],
+    rewardedMonths: ref.rewardedMonths + 1,
+    lastRedeemedAt: serverTimestamp(),
+  });
+
+  return { referrerId: ref.coachId, bonusDays: 30 };
+};
+
+DB.getCoachReferralStats = async function(coachId) {
+  const code = await DB.getReferralCode(coachId);
+  if (!code) return { code: null, totalReferred: 0, bonusMonths: 0 };
+  const snap = await getDoc(doc(db, 'referrals', code));
+  if (!snap.exists()) return { code, totalReferred: 0, bonusMonths: 0 };
+  const data = snap.data();
+  return {
+    code,
+    totalReferred: data.redeemedBy.length,
+    bonusMonths: data.rewardedMonths,
+  };
+};
+
 // Export the extended DB
 export { DB };
