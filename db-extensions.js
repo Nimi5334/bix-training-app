@@ -936,5 +936,66 @@ DB.getCoachStyleFingerprint = async function(coachId) {
   return { confidence: Math.min(history.length / 50, 1), patterns, editCount: history.length };
 };
 
+// ── FORM CHECK ──
+
+DB.saveFormCheckResult = async function(result) {
+  const id = result.id || `fc_${Date.now()}`;
+  await setDoc(doc(db, 'formChecks', id), {
+    ...result, id,
+    status: result.status || 'pending_coach_review',
+    createdAt: result.createdAt || serverTimestamp(),
+  });
+  return id;
+};
+
+DB.getFormChecksByClient = async function(clientId, limitN = 20) {
+  const q = query(
+    collection(db, 'formChecks'),
+    where('clientId', '==', clientId),
+    orderBy('createdAt', 'desc'),
+    limit(limitN)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
+DB.getPendingFormChecksForCoach = async function(coachId) {
+  const q = query(
+    collection(db, 'formChecks'),
+    where('coachId', '==', coachId),
+    where('status', '==', 'pending_coach_review'),
+    orderBy('createdAt', 'desc'),
+    limit(50)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
+DB.approveFormCheck = async function(formCheckId, coachNote, drillIds = []) {
+  await updateDoc(doc(db, 'formChecks', formCheckId), {
+    status: 'reviewed',
+    coachNote,
+    prescribedDrills: drillIds,
+    reviewedAt: serverTimestamp(),
+  });
+};
+
+DB.getFormDrillLibrary = async function(coachId) {
+  const [customSnap, defaultSnap] = await Promise.all([
+    getDocs(query(collection(db, 'formDrills'), where('coachId', '==', coachId))),
+    getDocs(query(collection(db, 'formDrills'), where('coachId', '==', 'default'))),
+  ]);
+  return [
+    ...defaultSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+    ...customSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+  ];
+};
+
+DB.saveFormDrill = async function(drill) {
+  const id = drill.id || `drill_${Date.now()}`;
+  await setDoc(doc(db, 'formDrills', id), { ...drill, id });
+  return id;
+};
+
 // Export the extended DB
 export { DB };
