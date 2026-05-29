@@ -32,13 +32,14 @@ exports.handler = async (event) => {
     if (snap.empty) {
       return { statusCode: 404, body: JSON.stringify({ error: 'Domain not configured' }) };
     }
-    const gym = snap.docs[0].data();
+    const gymSnap = snap.docs[0];
+    const gym = gymSnap.data();
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify({
         isCustomDomain: true,
-        gymId: gym.id,
+        gymId: gymSnap.id,
         coachId: gym.ownerId,
         gymName: gym.name,
       }),
