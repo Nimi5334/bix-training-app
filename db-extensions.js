@@ -1026,5 +1026,86 @@ DB.getAnniversaryData = async function(clientId) {
   return { startDate: startDate.toISOString(), years, isAnniversary };
 };
 
+// ── GYM / MULTI-COACH ──
+
+DB.createGym = async function(ownerId, gymName) {
+  const gymId = `gym_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+  const inviteCode = Math.random().toString(36).slice(2, 8).toUpperCase();
+
+  await setDoc(doc(db, 'gyms', gymId), {
+    id: gymId,
+    name: gymName,
+    ownerId,
+    coachIds: [ownerId],
+    inviteCode,
+    customDomain: null,
+    createdAt: serverTimestamp(),
+  });
+
+  await DB.updateUser(ownerId, { gymId, gymRole: 'owner' });
+  return { gymId, inviteCode };
+};
+
+DB.getGym = async function(gymId) {
+  const snap = await getDoc(doc(db, 'gyms', gymId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+};
+
+DB.getGymByCoach = async function(coachId) {
+  const coach = await DB.getUserById(coachId);
+  if (!coach?.gymId) return null;
+  return DB.getGym(coach.gymId);
+};
+
+DB.joinGymByInviteCode = async function(coachId, inviteCode) {
+  const snap = await getDocs(query(collection(db, 'gyms'), where('inviteCode', '==', inviteCode)));
+  if (snap.empty) throw new Error('Invalid invite code');
+
+  const gymDoc = snap.docs[0];
+  const gym = gymDoc.data();
+
+  if (gym.coachIds.includes(coachId)) throw new Error('Already in this gym');
+  if (gym.coachIds.length >= 5) throw new Error('Gym is full (max 5 coaches)');
+
+  await updateDoc(gymDoc.ref, { coachIds: [...gym.coachIds, coachId] });
+  await DB.updateUser(coachId, { gymId: gymDoc.id, gymRole: 'coach' });
+  return { gymId: gymDoc.id, gymName: gym.name };
+};
+
+DB.getGymCoaches = async function(gymId) {
+  const gym = await DB.getGym(gymId);
+  if (!gym) return [];
+  const coaches = await Promise.all(gym.coachIds.map(id => DB.getUserById(id)));
+  return coaches.filter(Boolean);
+};
+
+DB.getGymClients = async function(gymId) {
+  const gym = await DB.getGym(gymId);
+  if (!gym || !gym.coachIds.length) return [];
+
+  const chunks = [];
+  for (let i = 0; i < gym.coachIds.length; i += 10) chunks.push(gym.coachIds.slice(i, i + 10));
+
+  const allClients = [];
+  for (const chunk of chunks) {
+    const snap = await getDocs(query(
+      collection(db, 'users'),
+      where('coachId', 'in', chunk),
+      where('role', '==', 'client')
+    ));
+    snap.docs.forEach(d => allClients.push({ id: d.id, ...d.data() }));
+  }
+  return allClients;
+};
+
+DB.setCustomDomain = async function(gymId, domain) {
+  await updateDoc(doc(db, 'gyms', gymId), { customDomain: domain || null });
+};
+
+DB.getGymByDomain = async function(domain) {
+  const snap = await getDocs(query(collection(db, 'gyms'), where('customDomain', '==', domain)));
+  return snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
+};
+
 // Export the extended DB
 export { DB };
