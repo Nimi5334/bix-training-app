@@ -91,6 +91,11 @@ exports.generateProgramDraft = onCall(
     const tier = rawTier === 'studio' ? 'pro' : rawTier;
     if (tier !== 'pro') throw new HttpsError('permission-denied', 'Pro tier required');
 
+    // Verify client belongs to this coach
+    const clientSnap = await db.collection('users').doc(clientId).get();
+    const clientUser = clientSnap.data() || {};
+    if (clientUser.coachId !== coachId) throw new HttpsError('permission-denied', 'Client does not belong to this coach');
+
     // Get client intake
     const intakeSnap = await db.collection('intakeForms').doc(clientId).get();
     if (!intakeSnap.exists) throw new HttpsError('not-found', 'Client intake not found');
@@ -118,6 +123,9 @@ exports.generateProgramDraft = onCall(
       programData = JSON.parse(message.content[0].text);
     } catch {
       throw new HttpsError('internal', 'AI returned invalid JSON');
+    }
+    if (!Array.isArray(programData.week1) || !programData.week1.length) {
+      throw new HttpsError('internal', 'AI draft missing required week1 data');
     }
 
     // Confidence: based on intake completeness + style edit count

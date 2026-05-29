@@ -113,9 +113,20 @@ async function loadGymChat(gymId) {
   const msgs = await window.DB.getGymChatMessages(gymId).catch(() => []);
   const el = document.getElementById('gym-chat-messages');
   if (!el) return;
-  el.innerHTML = msgs.map(m => `
-    <div style="font-size:13px"><strong>${m.senderName || 'Coach'}:</strong> <span style="color:var(--text-muted)">${m.text}</span></div>
-  `).join('');
+  // Use textContent to prevent XSS from user-supplied message content
+  el.innerHTML = '';
+  msgs.forEach(m => {
+    const div = document.createElement('div');
+    div.style.fontSize = '13px';
+    const strong = document.createElement('strong');
+    strong.textContent = (m.senderName || 'Coach') + ':';
+    const span = document.createElement('span');
+    span.style.color = 'var(--text-muted)';
+    span.textContent = ' ' + (m.text || '');
+    div.appendChild(strong);
+    div.appendChild(span);
+    el.appendChild(div);
+  });
   el.scrollTop = el.scrollHeight;
 }
 
@@ -154,9 +165,19 @@ window.joinGym = async function() {
 };
 
 window.saveCustomDomain = async function(gymId) {
-  const domain = document.getElementById('custom-domain-input')?.value?.trim();
-  await window.DB.setCustomDomain(gymId, domain || null);
-  window.toast?.('Custom domain saved.', 'success');
+  try {
+    const coachId = window.DB.getSession().id;
+    const gym = await window.DB.getGym(gymId);
+    if (!gym || gym.ownerId !== coachId) {
+      window.toast?.('Only the gym owner can change the custom domain.', 'error');
+      return;
+    }
+    const domain = document.getElementById('custom-domain-input')?.value?.trim();
+    await window.DB.setCustomDomain(gymId, domain || null);
+    window.toast?.('Custom domain saved.', 'success');
+  } catch (err) {
+    window.toast?.(`Failed to save: ${err.message}`, 'error');
+  }
 };
 
 window.sendGymChat = async function(gymId) {
