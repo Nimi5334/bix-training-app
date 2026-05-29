@@ -5,3 +5,4 @@ exports.recalculateAtRiskDaily = require('./at-risk-cron').recalculateAtRiskDail
 exports.scheduleSmartPush      = require('./smart-push').scheduleSmartPush;
 exports.rescueNudge            = require('./rescue-nudge').rescueNudge;
 exports.weeklyRecap            = require('./weekly-recap').weeklyRecap;
+exports.generateProgramDraft   = require('./ai-program-draft').generateProgramDraft;
