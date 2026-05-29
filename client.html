@@ -357,6 +357,11 @@
       <div style="max-width:900px">
         <!-- Goal + weight tracking (SVG chart only) -->
         <div id="analytics-host"></div>
+        <!-- Achievements / badges -->
+        <div class="card" style="margin-top:20px">
+          <h3 style="margin-bottom:12px;font-size:15px">🏆 Achievements</h3>
+          <div id="badges-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+        </div>
       </div>
     </div>
 
@@ -561,6 +566,19 @@ function showPage(name) {
 async function renderProgressPage() {
   if (!window.clientAnalytics) return;
   await window.clientAnalytics.loadAnalytics();
+
+  // Load badges in progress tab
+  try {
+    const { computeEarnedBadges, computeStats, renderBadges } = await import('./achievements.js');
+    const user = await DB.getUserById(session.id);
+    const [logs, streakData] = await Promise.all([
+      DB.getWorkoutLogsByClient(session.id),
+      DB.computeClientStreak(session.id),
+    ]);
+    const stats = computeStats(logs, user.powerRecords || [], streakData.longest || 0);
+    const earned = computeEarnedBadges(stats);
+    renderBadges(earned, 'badges-grid');
+  } catch {}
 }
 
 // ── Form Check page ──
@@ -586,6 +604,47 @@ async function loadWeightBar() {
     document.getElementById('weight-display').textContent  = wt ? wt + ' kg' : '— kg';
     document.getElementById('weight-input').value          = wt || '';
   } catch(e) { /* ignore */ }
+}
+
+async function loadBadgesAndAnniversary() {
+  try {
+    const { computeEarnedBadges, computeStats, getNewBadges, renderBadges } = await import('./achievements.js');
+    const [user, logs, streakData] = await Promise.all([
+      DB.getUserById(session.id),
+      DB.getWorkoutLogsByClient(session.id),
+      DB.computeClientStreak(session.id),
+    ]);
+
+    const stats = computeStats(logs, user.powerRecords || [], streakData.longest || streakData.current || 0);
+    const earned = computeEarnedBadges(stats);
+    const newBadges = getNewBadges(earned, user.earnedBadgeIds || []);
+
+    if (newBadges.length) {
+      await DB.updateUser(session.id, { earnedBadgeIds: earned.map(b => b.id) });
+      newBadges.forEach((badge, i) => {
+        setTimeout(() => {
+          window.toast?.(`${badge.icon} Achievement unlocked: ${badge.name}!`, 'success');
+        }, i * 1500);
+      });
+    }
+
+    // Anniversary check
+    const anniv = await DB.getAnniversaryData(session.id);
+    if (anniv?.isAnniversary) {
+      const coachName = window._coachBrand?.displayName || 'Your Coach';
+      const banner = document.getElementById('client-welcome-banner');
+      if (banner) {
+        banner.innerHTML = `
+          <div style="background:linear-gradient(135deg,rgba(120,80,255,.2),rgba(251,191,36,.15));border:1px solid rgba(120,80,255,.4);border-radius:12px;padding:16px;margin-bottom:16px;text-align:center">
+            <div style="font-size:32px;margin-bottom:8px">🎉</div>
+            <strong style="display:block;font-size:16px">${anniv.years} Year${anniv.years > 1 ? 's' : ''} Strong!</strong>
+            <p style="font-size:13px;color:var(--text-muted);margin:4px 0 0">${anniv.years} year${anniv.years > 1 ? 's' : ''} ago you started training with ${coachName}. Keep it up.</p>
+          </div>`;
+      }
+    }
+  } catch (e) {
+    console.warn('loadBadgesAndAnniversary error:', e);
+  }
 }
 
 async function loadGoalProximity() {
@@ -657,8 +716,9 @@ async function renderHome() {
 
   tabsEl.innerHTML    = '<span style="color:var(--text-muted);font-size:13px">Loading…</span>';
   contentEl.innerHTML = '';
-  loadWeightBar();        // non-blocking
-  loadGoalProximity();    // non-blocking
+  loadWeightBar();            // non-blocking
+  loadGoalProximity();        // non-blocking
+  loadBadgesAndAnniversary(); // non-blocking
   if (window.Gamification) Gamification.renderStreakBanner('client-streak-banner', session.id);
 
   const plans = await DB.getPlansByClient(session.id);
