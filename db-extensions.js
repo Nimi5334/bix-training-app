@@ -1107,5 +1107,32 @@ DB.getGymByDomain = async function(domain) {
   return snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
 };
 
+// ── GYM INTERNAL CHAT ──
+
+DB.sendGymChatMessage = async function(gymId, senderId, senderName, text) {
+  const convoId = `gym_${gymId}`;
+  const convoRef = doc(db, 'conversations', convoId);
+  const snap = await getDoc(convoRef);
+  if (!snap.exists()) {
+    await setDoc(convoRef, { type: 'gym-internal', gymId, createdAt: serverTimestamp() });
+  }
+  await addDoc(collection(db, 'conversations', convoId, 'messages'), {
+    senderId, senderName, text,
+    timestamp: serverTimestamp(),
+  });
+  await updateDoc(convoRef, { lastMessage: text.slice(0, 120), lastMessageAt: serverTimestamp() });
+};
+
+DB.getGymChatMessages = async function(gymId, limitN = 50) {
+  const convoId = `gym_${gymId}`;
+  const q = query(
+    collection(db, 'conversations', convoId, 'messages'),
+    orderBy('timestamp', 'asc'),
+    limit(limitN)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
 // Export the extended DB
 export { DB };

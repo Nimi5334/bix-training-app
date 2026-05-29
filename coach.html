@@ -317,6 +317,9 @@
       <div class="nav-item" onclick="showPage('design')" data-page="design">
         <span class="nav-icon">🎨</span> <span data-i18n="navDesign">Brand & Design</span>
       </div>
+      <div class="nav-item" onclick="showPage('gym')" data-page="gym">
+        <span class="nav-icon">🏢</span> <span>Gym</span>
+      </div>
     </nav>
     <div class="sidebar-footer">
       <div class="user-info">
@@ -530,6 +533,11 @@
         </div>
       </div>
 
+    </div>
+
+    <!-- ══ GYM ══ -->
+    <div class="page" id="page-gym">
+      <div id="gym-management-container" style="max-width:700px;padding:4px"></div>
     </div>
 
     <!-- ══ SETTINGS ══ -->
@@ -1831,6 +1839,12 @@ document.addEventListener('sessionReady', async function() {
   showPage('members');
   loadPendingDrafts();
   loadShoutoutDraft();
+
+  // Wire gym tab
+  document.querySelector('[data-page="gym"]')?.addEventListener('click', async () => {
+    const { renderGymManagement } = await import('./gym-management.js');
+    await renderGymManagement('gym-management-container');
+  });
 
   // Load form check queue
   (async () => {
