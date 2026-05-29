@@ -30,6 +30,7 @@ const PAR_Q = [
 ];
 
 let session = null;
+let sessionUid = null;
 
 auth.onAuthStateChanged(async (user) => {
   if (!user) { location.replace('index.html'); return; }
@@ -41,6 +42,7 @@ auth.onAuthStateChanged(async (user) => {
   if (intake?.completed) { location.replace('client.html'); return; }
 
   session = userData;
+  sessionUid = user.uid;
 
   // Set coach brand name from invite or user's coach assignment
   const coachId = inviteCoachId || userData?.coachId;
@@ -117,7 +119,7 @@ window.submitIntake = async function() {
   btn.textContent = 'Submitting…';
 
   try {
-    await DB.saveIntakeForm(session.id, {
+    await DB.saveIntakeForm(sessionUid, {
       parq: { answers, completedAt: new Date().toISOString(), anyYes },
       waiver: { signedAt: new Date().toISOString(), signatureName: sig },
       completed: true,
