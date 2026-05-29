@@ -4,10 +4,15 @@
 import { DB } from './db-extensions.js';
 
 export const PRO_FEATURES = {
-  'save-the-client':   { title: 'One-tap save messages', body: 'Bix drafts the message. You tap Send. Save the client in seconds.' },
-  'unlimited-clients': { title: 'Unlimited clients',     body: 'You\'ve hit the 5-client free limit. Go Pro for unlimited.' },
-  'remove-bix-footer': { title: 'Remove "powered by Bix"', body: 'Make Bix completely invisible to your clients.' },
-  'custom-intake':     { title: 'Custom intake form',    body: 'Add your own questions to client intake.' }
+  'save-the-client':    { title: 'One-tap save messages',     body: 'Bix drafts the message. You tap Send. Save the client in seconds.' },
+  'unlimited-clients':  { title: 'Unlimited clients',         body: "You've hit the 5-client free limit. Go Pro for unlimited." },
+  'remove-bix-footer':  { title: 'Remove "powered by Bix"',  body: 'Make Bix completely invisible to your clients.' },
+  'custom-intake':      { title: 'Custom intake form',        body: 'Add your own questions to client intake.' },
+  'ai-program-drafts':  { title: 'AI Program Drafts',         body: 'Bix drafts a full week from intake data. You review and publish.' },
+  'form-check':         { title: 'AI Form Check',             body: 'Clients upload a video. Bix flags form issues as if you reviewed it.' },
+  'multi-coach':        { title: 'Multi-Coach Gym',           body: 'Add up to 5 coaches under one gym account.' },
+  'custom-domain':      { title: 'Custom Domain',             body: 'Your clients open app.yourgym.com — not bix.app.' },
+  'weekly-leaderboard': { title: 'Weekly Leaderboard',        body: 'Top clients by volume, sessions, and PRs each week.' },
 };
 
 export async function requirePro(featureKey) {

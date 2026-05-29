@@ -278,7 +278,7 @@ async function openSaveDialog(clientId) {
   });
 }
 
-// ── WEEKLY LEADERBOARD (Studio tier only) ──
+// ── WEEKLY LEADERBOARD (Pro tier) ──
 async function renderWeeklyLeaderboard(members) {
   const section = document.getElementById('weekly-leaderboard');
   if (!section) return;
@@ -287,7 +287,7 @@ async function renderWeeklyLeaderboard(members) {
   if (!coachId) return;
 
   const tier = await window.DB.getCoachTier(coachId);
-  if (tier !== 'studio') { section.style.display = 'none'; return; }
+  if (tier === 'free') { section.style.display = 'none'; return; }
   if (!members || members.length === 0) { section.style.display = 'none'; return; }
 
   const lastMonday = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
