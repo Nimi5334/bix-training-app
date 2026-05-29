@@ -311,6 +311,9 @@
       <!-- Streak banner -->
       <div id="client-streak-banner" style="margin-bottom:16px"></div>
 
+      <!-- Goal proximity strip -->
+      <div id="goal-proximity-strip" style="display:none;margin-bottom:12px;padding:10px 14px;background:rgba(120,80,255,.08);border:1px solid rgba(120,80,255,.25);border-radius:var(--r-md);font-size:13px;line-height:1.5"></div>
+
       <!-- Weight bar -->
       <div id="weight-bar" style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:12px 16px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:var(--r-md);flex-wrap:wrap;backdrop-filter:blur(12px)">
         <span style="font-size:13px;color:var(--text-muted)">⚖️ Current Weight:</span>
@@ -571,6 +574,46 @@ async function loadWeightBar() {
   } catch(e) { /* ignore */ }
 }
 
+async function loadGoalProximity() {
+  const strip = document.getElementById('goal-proximity-strip');
+  if (!strip) return;
+  try {
+    const user    = await DB.getUserById(session.id);
+    const current = parseFloat(user?.currentWeight);
+    const goal    = parseFloat(user?.goalWeight);
+    const purpose = user?.goalPurpose || '';
+
+    // Only show when there's a numeric goal that isn't yet reached
+    if (!current || !goal) { strip.style.display = 'none'; return; }
+    const diff = purpose === 'Gaining weight' ? goal - current : current - goal;
+    if (diff <= 0) { strip.style.display = 'none'; return; } // goal reached
+
+    const diffText = `${Math.abs(diff).toFixed(1)} kg`;
+
+    // Calculate weekly pace from last 4 weeks of weight history
+    let weeksText = '';
+    try {
+      const history = await DB.getWeightHistoryByClient(session.id);
+      const fourWeeksAgo = new Date(Date.now() - 28 * 86400000).toISOString().slice(0, 10);
+      const recent = history.filter(h => h.date >= fourWeeksAgo);
+      if (recent.length >= 2) {
+        const oldest  = recent[0].weight;
+        const newest  = recent[recent.length - 1].weight;
+        const weeklyChange = Math.abs(newest - oldest) / 4;
+        if (weeklyChange > 0.05) {
+          const weeksLeft = Math.round(Math.abs(diff) / weeklyChange);
+          weeksText = ` ~${weeksLeft} week${weeksLeft !== 1 ? 's' : ''} at current pace.`;
+        }
+      }
+    } catch { /* pace calc is best-effort */ }
+
+    strip.innerHTML = `🎯 <strong>${diffText} to your goal.</strong>${weeksText || ' Keep going!'}`;
+    strip.style.display = '';
+  } catch(e) {
+    strip.style.display = 'none';
+  }
+}
+
 function startWeightEdit() {
   document.getElementById('weight-edit-row').style.display = 'flex';
   document.getElementById('weight-edit-btn').style.display = 'none';
@@ -590,6 +633,7 @@ async function saveWeight() {
   session.currentWeight = val;
   document.getElementById('weight-display').textContent = val + ' kg';
   cancelWeightEdit();
+  loadGoalProximity();
   window.clientAnalytics?.loadAnalytics();
 }
 
@@ -599,7 +643,8 @@ async function renderHome() {
 
   tabsEl.innerHTML    = '<span style="color:var(--text-muted);font-size:13px">Loading…</span>';
   contentEl.innerHTML = '';
-  loadWeightBar(); // non-blocking
+  loadWeightBar();        // non-blocking
+  loadGoalProximity();    // non-blocking
   if (window.Gamification) Gamification.renderStreakBanner('client-streak-banner', session.id);
 
   const plans = await DB.getPlansByClient(session.id);

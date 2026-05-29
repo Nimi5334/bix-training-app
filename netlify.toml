@@ -20,3 +20,7 @@
 # Scheduled: run at-risk check daily at 9am UTC
 [functions."at-risk-check"]
   schedule = "0 9 * * *"
+
+# Scheduled: flag coaches with no clients after 24h for manual follow-up (10am UTC)
+[functions."coach-followup-check"]
+  schedule = "0 10 * * *"

@@ -27,6 +27,7 @@ export class CoachMembers {
       this.checkAtRiskMembers();
       this.checkExpiringMemberships();
       await renderAtRiskWidget();
+      await renderWeeklyLeaderboard(this.members);
     } catch (err) {
       console.error('Failed to load members:', err);
     }
@@ -275,6 +276,63 @@ async function openSaveDialog(clientId) {
     dialog.close();
     dialog.remove();
   });
+}
+
+// ── WEEKLY LEADERBOARD (Studio tier only) ──
+async function renderWeeklyLeaderboard(members) {
+  const section = document.getElementById('weekly-leaderboard');
+  if (!section) return;
+
+  const coachId = window.DB?.getSession?.()?.id;
+  if (!coachId) return;
+
+  const tier = await window.DB.getCoachTier(coachId);
+  if (tier !== 'studio') { section.style.display = 'none'; return; }
+  if (!members || members.length === 0) { section.style.display = 'none'; return; }
+
+  const lastMonday = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+
+  const stats = members.map(m => {
+    const thisWeek = (m.recentWorkouts || []).filter(w => (w.date || '') >= lastMonday);
+    const volume   = thisWeek.reduce((sum, w) => sum + (w.totalVolume || 0), 0);
+    const sessions = thisWeek.length;
+    const prs      = (m.powerRecords || []).filter(p => (p.date || '') >= lastMonday).length;
+    return { name: m.name || '—', volume, sessions, prs };
+  });
+
+  function topThree(arr, key) {
+    return [...arr]
+      .sort((a, b) => b[key] - a[key])
+      .slice(0, 3)
+      .filter(s => s[key] > 0);
+  }
+
+  function medal(i) { return ['🥇','🥈','🥉'][i] || ''; }
+
+  function renderCategory(title, rows, unit) {
+    if (rows.length === 0) return '';
+    const items = rows.map((r, i) =>
+      `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:18px;width:24px">${medal(i)}</span>
+        <span style="flex:1;font-size:13px;font-weight:600">${r.name}</span>
+        <span style="font-size:12px;color:var(--text-muted)">${unit === 'kg' ? r.volume.toFixed(0) + ' kg' : r[unit === 'sessions' ? 'sessions' : 'prs']}</span>
+      </div>`
+    ).join('');
+    return `
+      <div style="background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:var(--r-md);padding:14px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:10px">${title}</div>
+        ${items}
+      </div>`;
+  }
+
+  const grid = document.getElementById('leaderboard-grid');
+  grid.innerHTML = [
+    renderCategory('Volume', topThree(stats, 'volume'), 'kg'),
+    renderCategory('Sessions', topThree(stats, 'sessions'), 'sessions'),
+    renderCategory('PRs', topThree(stats, 'prs'), 'prs'),
+  ].join('');
+
+  section.style.display = grid.innerHTML.trim() ? 'block' : 'none';
 }
 
 // Global functions for HTML onclick handlers

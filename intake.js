@@ -129,6 +129,18 @@ window.submitIntake = async function() {
       await DB.consumeInvite(inviteSlug, session.id);
     }
 
+    // Notify coach that intake is complete
+    const coachId = inviteCoachId || session.coachId;
+    if (coachId) {
+      await DB.saveNotification({
+        title: `${session.name || 'Client'}'s intake is in`,
+        message: `Review their starter program and send it over.`,
+        targetUser: coachId,
+        category: 'intake-complete',
+        type: 'success',
+      });
+    }
+
     location.replace('client.html');
   } catch (e) {
     console.error('Intake submit error:', e);
