@@ -336,6 +336,38 @@ async function renderWeeklyLeaderboard(members) {
   section.style.display = grid.innerHTML.trim() ? 'block' : 'none';
 }
 
+// Form trends for Pro coaches (shown in member detail)
+window.renderFormTrends = async function(clientId, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const checks = await window.DB.getFormChecksByClient(clientId, 40);
+  if (checks.length < 2) {
+    container.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">Needs 2+ form checks to show trends</span>';
+    return;
+  }
+
+  const byExercise = {};
+  checks.forEach(fc => {
+    if (!byExercise[fc.exercise]) byExercise[fc.exercise] = [];
+    byExercise[fc.exercise].push({ flags: fc.flags || [] });
+  });
+
+  const rows = Object.entries(byExercise).map(([exercise, sessions]) => {
+    const counts = sessions.map(s => s.flags.length);
+    const trend = counts.length >= 2 ? counts[counts.length - 1] - counts[0] : 0;
+    const color = trend < 0 ? '#22c55e' : trend > 0 ? '#ef4444' : '#f59e0b';
+    const label = trend < 0 ? `↓ ${Math.abs(trend)} fewer flags` : trend > 0 ? `↑ ${trend} more flags` : 'Stable';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px">
+      <span style="font-weight:600">${exercise}</span>
+      <span style="color:${color}">${label}</span>
+      <span style="color:var(--text-muted)">${sessions.length} checks</span>
+    </div>`;
+  }).join('');
+
+  container.innerHTML = rows;
+};
+
 // Global functions for HTML onclick handlers
 window.filterMembers = (filter) => {
   if (window.coachMembers) {

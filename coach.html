@@ -378,6 +378,11 @@
           <div id="at-risk-list">Loading…</div>
         </section>
 
+        <!-- Form check review queue (Pro) -->
+        <section id="form-check-queue" class="card" style="margin-bottom:20px;display:none">
+          <!-- Populated by form-check-coach.js -->
+        </section>
+
         <!-- Weekly leaderboard (Pro tier) -->
         <section id="weekly-leaderboard" class="card" style="margin-bottom:20px;display:none">
           <h3 style="margin-bottom:4px">🏆 This Week's Leaderboard</h3>
@@ -1776,6 +1781,17 @@ document.addEventListener('sessionReady', async function() {
   applyToDOM(document);
   showPage('members');
   loadPendingDrafts();
+
+  // Load form check queue
+  (async () => {
+    try {
+      const tier = await window.DB.getCoachTier(session.id);
+      if (tier === 'pro') {
+        const { renderFormCheckQueue } = await import('./form-check-coach.js');
+        await renderFormCheckQueue('form-check-queue');
+      }
+    } catch {}
+  })();
 
   if (window.innerWidth > 768 && localStorage.getItem('sidebar_collapsed') === '1') {
     document.querySelector('.dashboard').classList.add('sidebar-collapsed');
