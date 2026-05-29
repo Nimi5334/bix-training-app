@@ -114,6 +114,20 @@
         window.toast('Loading your program...');
       }
     };
+
+    window.triggerFormCheck = function(exercise) {
+      if (!window.openFormCheck) { window.toast?.('Form check loading…', 'info'); return; }
+      window.openFormCheck({
+        exercise,
+        clientId: session.id,
+        coachId: session.coachId,
+        workoutLogId: null,
+      });
+    };
+  </script>
+  <script type="module">
+    import { openFormCheck } from './form-check.js';
+    window.openFormCheck = openFormCheck;
   </script>
 </head>
 <body>
