@@ -2,7 +2,7 @@
  * Bix Service Worker — Cache-first for static assets, network-first for API/Firebase
  */
 
-const CACHE = 'bix-v4';
+const CACHE = 'bix-v5';
 const STATIC = [
   '/',
   '/index.html',
@@ -69,25 +69,40 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  const url = e.request.url;
+  const req = e.request;
+  const url = req.url;
 
-  // Let network-only requests pass through
+  // Let network-only requests pass through (Firebase, payments, functions)
   if (NETWORK_ONLY.some(p => url.includes(p))) return;
 
-  // Cache-first for static assets
+  // NETWORK-FIRST for code (HTML pages + JS modules) so fixes take effect on
+  // the next load instead of being masked by a stale cache. Falls back to cache
+  // when offline so the PWA still works without a connection.
+  const isCode = req.mode === 'navigate' || url.endsWith('.js') || url.endsWith('.html');
+  if (isCode) {
+    e.respondWith(
+      fetch(req).then(res => {
+        if (res && res.status === 200 && res.type !== 'opaque') {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(req, clone));
+        }
+        return res;
+      }).catch(() =>
+        caches.match(req).then(c => c || (req.mode === 'navigate' ? caches.match('/index.html') : undefined))
+      )
+    );
+    return;
+  }
+
+  // CACHE-FIRST for static assets (css, icons, manifest) — these rarely change.
   e.respondWith(
-    caches.match(e.request).then(cached => {
+    caches.match(req).then(cached => {
       if (cached) return cached;
-      return fetch(e.request).then(res => {
+      return fetch(req).then(res => {
         if (!res || res.status !== 200 || res.type === 'opaque') return res;
         const clone = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
+        caches.open(CACHE).then(c => c.put(req, clone));
         return res;
-      }).catch(() => {
-        // Offline fallback for navigation
-        if (e.request.mode === 'navigate') {
-          return caches.match('/index.html');
-        }
       });
     })
   );
