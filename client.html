@@ -45,12 +45,15 @@
     }
 
     auth.onAuthStateChanged(async (user) => {
+      console.log('[BIX-DEBUG client.html] onAuthStateChanged fired, user:', user?.uid ?? 'null');
       if (!user) { location.replace('index.html'); return; }
       const userData = await DB.getUserByEmail(user.email);
+      console.log('[BIX-DEBUG client.html] userData:', userData?.id, 'role:', userData?.role);
       if (!userData || userData.role !== 'client') { location.replace('index.html'); return; }
       // Intake check — redirect new clients to complete PAR-Q + waiver first
-      const intake = await DB.getIntakeForm(user.uid).catch(() => null);
-      if (!intake?.completed) { location.replace('intake.html'); return; }
+      const intake = await DB.getIntakeForm(user.uid).catch((e) => { console.error('[BIX-DEBUG client.html] getIntakeForm error:', e); return null; });
+      console.log('[BIX-DEBUG client.html] intake result:', JSON.stringify(intake));
+      if (!intake?.completed) { console.warn('[BIX-DEBUG client.html] intake NOT completed, redirecting to intake.html'); location.replace('intake.html'); return; }
       window.session = userData;
       document.dispatchEvent(new CustomEvent('sessionReady'));
 

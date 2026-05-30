@@ -118,12 +118,15 @@ window.submitIntake = async function() {
   btn.disabled = true;
   btn.textContent = 'Submitting…';
 
+  console.log('[BIX-DEBUG intake.js] submitIntake — sessionUid:', sessionUid, 'session.id:', session?.id);
+
   try {
     await DB.saveIntakeForm(sessionUid, {
       parq: { answers, completedAt: new Date().toISOString(), anyYes },
       waiver: { signedAt: new Date().toISOString(), signatureName: sig },
       completed: true,
     });
+    console.log('[BIX-DEBUG intake.js] saveIntakeForm succeeded, redirecting to client.html');
 
     // If invite was used, attach client to coach and consume invite
     if (inviteSlug && inviteCoachId) {
